@@ -1,0 +1,12 @@
+[package]
+name = "turboui-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TurboUI: platform-neutral UI description, themes and layout. Knows nothing about any renderer."
+
+[dependencies]
+taffy = "0.9"
+fontdue = "0.9"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"

@@ -1,0 +1,17 @@
+//! TurboUI core: describe a screen once, get the same laid-out scene everywhere.
+//!
+//! The flow is `Node` tree (what the app writes) -> `layout()` -> `Scene` (a flat list of
+//! rectangles and text with final positions). A renderer backend only has to draw a `Scene`;
+//! it never decides layout, so every platform shows the same thing.
+
+mod layout;
+mod node;
+mod style;
+mod text;
+mod theme;
+
+pub use layout::{layout, DrawItem, Scene};
+pub use node::{col, row, spacer, text as label, Kind, Node};
+pub use style::{Align, Color, Dir, Justify, Size, Style};
+pub use text::{Font, Measurer, FONT_MONO, FONT_REGULAR, FONT_BOLD};
+pub use theme::{Theme, ThemeError};

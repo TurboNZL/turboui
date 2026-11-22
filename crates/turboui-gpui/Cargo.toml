@@ -1,0 +1,10 @@
+[package]
+name = "turboui-gpui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TurboUI desktop backend: draws a scene with GPUI."
+
+[dependencies]
+turboui-core = { path = "../turboui-core" }
+gpui = "0.2.2"

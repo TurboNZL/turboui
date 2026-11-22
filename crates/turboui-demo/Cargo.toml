@@ -1,0 +1,15 @@
+[package]
+name = "turboui-demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = []
+gpui = ["dep:turboui-gpui"]
+
+[dependencies]
+turboui-core = { path = "../turboui-core" }
+turboui-raster = { path = "../turboui-raster" }
+turboui-gpui = { path = "../turboui-gpui", optional = true }

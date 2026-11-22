@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["crates/turboui-core", "crates/turboui-raster", "crates/turboui-gpui", "crates/turboui-demo"]
+# The GPUI backend is a heavy build; plain `cargo test` needs no GPU stack (the demo only pulls GPUI with --features gpui).
+default-members = ["crates/turboui-core", "crates/turboui-raster", "crates/turboui-demo"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+
+# gpui 0.2.2 pulls in xattr 0.2.3, which does not build against current libc
+# (it uses `libc::ENOATTR`, which Linux does not have). The vendored copy uses ENODATA.
+[patch.crates-io]
+xattr = { path = "vendor-patches/xattr" }
