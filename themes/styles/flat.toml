@@ -1,0 +1,11 @@
+# A flat, Breeze-like style: small corners, no glass.
+name = "Flat"
+
+[numbers]
+radius_ctl = 4
+radius_card = 4
+radius_bar = 0
+float = 0
+text_sm = 12
+text_md = 13
+text_lg = 16

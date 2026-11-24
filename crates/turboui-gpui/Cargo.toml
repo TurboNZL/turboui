@@ -13,3 +13,6 @@ headless = ["gpui-kit/test-support"]
 [dependencies]
 turboui-core = { path = "../turboui-core" }
 gpui-kit = "0.10"
+turboui-raster = { path = "../turboui-raster" }
+image = { version = "0.25", default-features = false }
+smallvec = "1"

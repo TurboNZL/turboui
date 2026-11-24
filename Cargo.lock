@@ -7312,7 +7312,10 @@ name = "turboui-gpui"
 version = "0.1.0"
 dependencies = [
  "gpui-kit",
+ "image",
+ "smallvec",
  "turboui-core",
+ "turboui-raster",
 ]
 
 [[package]]

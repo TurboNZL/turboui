@@ -8,6 +8,10 @@ use taffy::prelude as t;
 pub enum DrawItem {
     Rect { x: f32, y: f32, w: f32, h: f32, bg: Option<Color>, radius: f32, border: Option<(f32, Color)> },
     Text { x: f32, y: f32, w: f32, h: f32, text: String, size: f32, color: Color, font: Font, baseline: f32, line_height: f32 },
+    /// Soft round colour patches inside a box (ambient background light).
+    Radials { x: f32, y: f32, w: f32, h: f32, list: Vec<crate::style::Radial> },
+    /// A glass surface (see [`crate::Glass`]); replaces the box's plain fill.
+    Glass { x: f32, y: f32, w: f32, h: f32, radius: f32, glass: crate::style::Glass },
     /// A filled polygon with points in window pixels.
     Poly { points: Vec<(f32, f32)>, color: Color },
 }
@@ -114,8 +118,13 @@ fn collect(tree: &t::TaffyTree<()>, id: t::NodeId, n: &Node, ox: f32, oy: f32, m
             });
         }
         Kind::Box => {
-            if s.bg.is_some() || s.border.is_some() {
+            if let Some(g) = &s.glass {
+                out.push(DrawItem::Glass { x, y, w, h, radius: s.radius, glass: g.clone() });
+            } else if s.bg.is_some() || s.border.is_some() {
                 out.push(DrawItem::Rect { x, y, w, h, bg: s.bg, radius: s.radius, border: s.border });
+            }
+            if !s.radials.is_empty() {
+                out.push(DrawItem::Radials { x, y, w, h, list: s.radials.clone() });
             }
             let kids = tree.children(id).unwrap();
             for (k, kid) in n.children.iter().zip(kids) {

@@ -74,6 +74,36 @@ pub enum Size {
     Percent(f32),
 }
 
+/// A soft round colour patch (used for ambient backgrounds). `x` is a fraction of the box width, `y` of its height,
+/// and `radius` a fraction of its width.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Radial {
+    pub x: f32,
+    pub y: f32,
+    pub radius: f32,
+    pub color: Color,
+}
+
+/// A "liquid glass" surface: the picture behind it is blurred, bent at the rim, tinted and lit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Glass {
+    /// Blur of what is behind, in pixels.
+    pub blur: f32,
+    pub saturate: f32,
+    pub brightness: f32,
+    /// Tint laid over the blurred picture (its alpha is the glass density).
+    pub fill: Color,
+    /// Strength (0 to 1) of the diagonal white sheen.
+    pub sheen: f32,
+    /// Rim highlight colour; its alpha is the peak brightness.
+    pub rim: Color,
+    /// Bend the light at the edge (the "lens"). Off gives plain frosted glass.
+    pub lens: bool,
+    pub shadow_blur: f32,
+    pub shadow_dy: f32,
+    pub shadow: Color,
+}
+
 /// Everything a box or text can look like. Plain data: no renderer types in here.
 #[derive(Clone, Debug)]
 pub struct Style {
@@ -95,6 +125,8 @@ pub struct Style {
     pub mono: bool,
     /// Row boxes only: start a new line when the children do not fit.
     pub wrap: bool,
+    pub radials: Vec<Radial>,
+    pub glass: Option<Glass>,
 }
 
 impl Default for Style {
@@ -116,6 +148,8 @@ impl Default for Style {
             bold: false,
             mono: false,
             wrap: false,
+            radials: vec![],
+            glass: None,
         }
     }
 }

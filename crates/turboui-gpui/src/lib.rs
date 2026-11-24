@@ -5,14 +5,62 @@ use gpui_kit::prelude::*;
 use gpui_kit::TestSupportExt as _;
 use gpui_kit::*;
 use std::borrow::Cow;
-use turboui_core::{layout, Color, DrawItem, Font, Measurer, Node, FONT_BOLD, FONT_MONO, FONT_REGULAR};
+use std::sync::Arc;
+use turboui_core::{layout, paint_radials, Color, DrawItem, Font, Measurer, Node, Scene, FONT_BOLD, FONT_MONO, FONT_REGULAR};
 
 fn c(col: Color) -> Rgba {
     rgba(col.to_rgba_u32())
 }
 
-fn item_to_element(it: &DrawItem) -> AnyElement {
+/// Straight-alpha RGBA bytes to a GPUI image. GPUI wants BGRA and premultiplies in its own shader, so the
+/// colours must stay straight (premultiplying here made soft edges twice as faint).
+fn to_image(w: u32, h: u32, rgba: &[u8]) -> Arc<RenderImage> {
+    let mut bgra = Vec::with_capacity(rgba.len());
+    for px in rgba.chunks_exact(4) {
+        bgra.extend_from_slice(&[px[2], px[1], px[0], px[3]]);
+    }
+    let img = image::RgbaImage::from_raw(w, h, bgra).expect("image size matches");
+    Arc::new(RenderImage::new(smallvec::smallvec![image::Frame::new(img)]))
+}
+
+/// A picture painted into the box `(x, y, w, h)`.
+fn picture(x: f32, y: f32, w: f32, h: f32, img: Arc<RenderImage>) -> AnyElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let _ = window.paint_image(bounds, bounds, Corners::default(), img, 0, false);
+        },
+    )
+    .absolute()
+    .left(px(x))
+    .top(px(y))
+    .w(px(w))
+    .h(px(h))
+    .into_any_element()
+}
+
+fn item_to_element(it: &DrawItem, image: Option<&Arc<RenderImage>>) -> AnyElement {
     match it {
+        DrawItem::Radials { x, y, w, h, .. } | DrawItem::Glass { x, y, w, h, .. } => {
+            let img = image.expect("pictures are prepared for radials and glass").clone();
+            let glass_shadow = if let DrawItem::Glass { radius, glass, .. } = it {
+                let hsla: Hsla = c(glass.shadow).into();
+                Some(div().absolute().left(px(*x)).top(px(*y)).w(px(*w)).h(px(*h)).rounded(px(*radius)).shadow(vec![BoxShadow {
+                    color: hsla,
+                    offset: point(px(0.0), px(glass.shadow_dy)),
+                    blur_radius: px(glass.shadow_blur),
+                    spread_radius: px(0.0),
+                    inset: false,
+                }]))
+            } else {
+                None
+            };
+            let pic = picture(*x, *y, *w, *h, img);
+            match glass_shadow {
+                Some(s) => div().child(s).child(pic).into_any_element(),
+                None => pic,
+            }
+        }
         DrawItem::Rect { x, y, w, h, bg, radius, border } => {
             let mut d = div().absolute().left(px(*x)).top(px(*y)).w(px(*w)).h(px(*h)).rounded(px(*radius));
             if let Some(bg) = bg {
@@ -73,6 +121,8 @@ fn item_to_element(it: &DrawItem) -> AnyElement {
 
 struct SceneView<S> {
     state: S,
+    /// Pictures for the radial and glass items of the last scene, valid while the scene and scale stay the same.
+    cache: Option<(Scene, f32, Vec<Option<Arc<RenderImage>>>)>,
     build: Box<dyn Fn(&S) -> Node>,
     update: Box<dyn Fn(&mut S, &str)>,
     measurer: Measurer,
@@ -82,6 +132,30 @@ impl<S: 'static> Render for SceneView<S> {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let size = window.viewport_size();
         let scene = layout(&(self.build)(&self.state), f32::from(size.width), f32::from(size.height), &self.measurer);
+        let scale = window.scale_factor();
+        let fresh = !matches!(&self.cache, Some((s, sc, _)) if *s == scene && *sc == scale);
+        if fresh {
+            // Glass cannot be blurred or bent by GPUI itself: the reference renderer makes the finished surface
+            // and GPUI paints it as a picture. Ambient light is painted the same way.
+            let pics = scene
+                .items
+                .iter()
+                .enumerate()
+                .map(|(i, it)| match it {
+                    DrawItem::Glass { .. } => {
+                        let p = turboui_raster::glass_patch(&scene, i, Color::rgb(0), &self.measurer, scale);
+                        Some(to_image(p.w, p.h, &p.rgba))
+                    }
+                    DrawItem::Radials { w, h, list, .. } => {
+                        let (wd, hd) = ((w * scale).round() as u32, (h * scale).round() as u32);
+                        Some(to_image(wd, hd, &paint_radials(wd, hd, list)))
+                    }
+                    _ => None,
+                })
+                .collect();
+            self.cache = Some((scene.clone(), scale, pics));
+        }
+        let pics = &self.cache.as_ref().expect("cache was just filled").2;
         let hits = scene.hits.iter().map(|h| {
             let id = h.id.clone();
             div()
@@ -98,7 +172,7 @@ impl<S: 'static> Render for SceneView<S> {
                 }))
                 .test_support()
         });
-        div().relative().size_full().children(scene.items.iter().map(item_to_element)).children(hits)
+        div().relative().size_full().children(scene.items.iter().zip(pics.iter()).map(|(it, pic)| item_to_element(it, pic.as_ref()))).children(hits)
     }
 }
 
@@ -128,7 +202,7 @@ pub fn run<S: 'static>(
                 ..Default::default()
             },
             cx,
-            move |_, cx| cx.new(|_| SceneView { state, build: Box::new(build), update: Box::new(update), measurer: Measurer::new() }),
+            move |_, cx| cx.new(|_| SceneView { state, cache: None, build: Box::new(build), update: Box::new(update), measurer: Measurer::new() }),
         )
         .expect("open window");
         cx.on_window_closed(|cx, _| {
@@ -177,7 +251,7 @@ pub fn screenshot_after_clicks<S: 'static>(
                     ..Default::default()
                 },
                 cx,
-                move |_, cx| cx.new(|_| SceneView { state, build: Box::new(build), update: Box::new(update), measurer: Measurer::new() }),
+                move |_, cx| cx.new(|_| SceneView { state, cache: None, build: Box::new(build), update: Box::new(update), measurer: Measurer::new() }),
             )
         })
         .expect("open offscreen window");

@@ -124,6 +124,14 @@ impl Node {
         self.style.bold = true;
         self
     }
+    pub fn radials(mut self, r: Vec<Radial>) -> Self {
+        self.style.radials = r;
+        self
+    }
+    pub fn glass(mut self, g: Glass) -> Self {
+        self.style.glass = Some(g);
+        self
+    }
     pub fn wrap(mut self) -> Self {
         self.style.wrap = true;
         self

@@ -1,0 +1,79 @@
+# macOS Liquid Glass, ported from turbothemes' `liquid` style (themes/liquid/style.css):
+# floating translucent bars that blur and bend what is behind them, with a lit rim.
+name = "Liquid Glass"
+
+[numbers]
+radius_ctl = 9999
+radius_card = 24
+radius_bar = 30
+float = 12
+text_sm = 12
+text_md = 13
+text_lg = 16
+
+[glass_dark]
+blur = 14
+saturate = 1.7
+brightness = 1.05
+fill = "surface/0.34"
+sheen = 0.14
+rim = "white/0.5"
+lens = true
+shadow_blur = 38
+shadow_dy = 12
+shadow = "black/0.36"
+
+[glass_light]
+blur = 14
+saturate = 1.9
+brightness = 1.04
+fill = "surface/0.46"
+sheen = 0.6
+rim = "white/0.9"
+lens = true
+shadow_blur = 34
+shadow_dy = 12
+shadow = "#28345a33"
+
+# Something for the glass to bend: soft coloured light behind everything (the web style does the same).
+[[ambient_dark]]
+x = 0.06
+y = -0.08
+radius = 0.67
+color = "accent/0.40"
+[[ambient_dark]]
+x = 0.98
+y = 0.06
+radius = 0.58
+color = "top/0.30"
+[[ambient_dark]]
+x = 0.62
+y = 1.12
+radius = 0.62
+color = "bad/0.18"
+[[ambient_dark]]
+x = 0.30
+y = 0.60
+radius = 0.44
+color = "good/0.10"
+
+[[ambient_light]]
+x = 0.06
+y = -0.08
+radius = 0.67
+color = "accent/0.46"
+[[ambient_light]]
+x = 0.98
+y = 0.06
+radius = 0.58
+color = "top/0.38"
+[[ambient_light]]
+x = 0.62
+y = 1.12
+radius = 0.62
+color = "bad/0.22"
+[[ambient_light]]
+x = 0.30
+y = 0.60
+radius = 0.44
+color = "good/0.16"

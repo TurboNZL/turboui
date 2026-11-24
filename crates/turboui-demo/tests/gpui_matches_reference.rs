@@ -2,8 +2,8 @@
 //! renderer, and checks they agree closely. Needs a Vulkan driver (lavapipe is fine):
 //!   VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json cargo test -p turboui-demo --features headless --test gpui_matches_reference
 #![cfg(feature = "headless")]
-use turboui_core::{layout, Measurer, Theme};
-use turboui_demo::{screen, THEME};
+use turboui_core::{layout, Measurer};
+use turboui_demo::{screen, theme_from_arg};
 
 /// Average per-channel difference (0 to 255) between the GPUI picture, shrunk to the reference size, and the reference.
 fn mean_diff(gpui: (u32, u32, Vec<u8>), reference: &tiny_skia::Pixmap) -> f64 {
@@ -30,29 +30,49 @@ fn mean_diff(gpui: (u32, u32, Vec<u8>), reference: &tiny_skia::Pixmap) -> f64 {
     total as f64 / (w as u64 * h as u64 * 3) as f64
 }
 
-#[test]
-fn gpui_and_reference_agree() {
-    let theme = Theme::from_toml(THEME).unwrap();
+fn agree(look: &str, main: bool, w: f32, h: f32, limit: f64) {
+    let theme = theme_from_arg(look);
     let m = Measurer::new();
-    let scene = layout(&screen::server_manager(&theme, &screen::State::sample()), 1000.0, 640.0, &m);
-    let reference = turboui_raster::render(&scene, theme.color("window"), &m);
+    let node = |t: &turboui_core::Theme| if main { screen::server_manager(t, &screen::State::sample()) } else { screen::server_window(t) };
+    let reference = turboui_raster::render(&layout(&node(&theme), w, h, &m), theme.color("bg"), &m);
     let t = theme.clone();
-    let shot = turboui_gpui::screenshot(screen::State::sample(), move |st| screen::server_manager(&t, st), 1000.0, 640.0);
+    let shot = turboui_gpui::screenshot(screen::State::sample(), move |st| if main { screen::server_manager(&t, st) } else { screen::server_window(&t) }, w, h);
     let d = mean_diff(shot, &reference);
-    println!("mean difference between GPUI and the reference renderer: {d:.3} / 255");
-    assert!(d < 4.0, "GPUI differs from the reference by {d:.2}/255 on average");
+    println!("{look} main={main}: mean difference {d:.3} / 255");
+    assert!(d < limit, "{look} main={main}: GPUI differs from the reference by {d:.2}/255 on average (limit {limit})");
+}
+
+#[test]
+fn flat_main() {
+    agree("nord/flat", true, 1000.0, 640.0, 4.0);
+}
+#[test]
+fn flat_window() {
+    agree("macos-dark/flat", false, 900.0, 560.0, 4.0);
+}
+#[test]
+fn liquid_dark_main() {
+    agree("macos-dark/liquid", true, 1000.0, 640.0, 4.0);
+}
+#[test]
+fn liquid_light_main() {
+    agree("macos/liquid", true, 1000.0, 640.0, 4.0);
+}
+#[test]
+fn liquid_dark_window() {
+    agree("macos-dark/liquid", false, 900.0, 560.0, 4.0);
 }
 
 /// Clicking a server tile in the real GPUI window must select it, exactly as the app state says.
 #[test]
 fn clicking_a_tile_selects_it() {
-    let theme = Theme::from_toml(THEME).unwrap();
+    let theme = theme_from_arg("nord/flat");
     let m = Measurer::new();
     let mut after = screen::State::sample();
     after.click("srv:2");
     assert_eq!(after.selected, Some(2));
-    let want = turboui_raster::render(&layout(&screen::server_manager(&theme, &after), 1000.0, 640.0, &m), theme.color("window"), &m);
-    let unchanged = turboui_raster::render(&layout(&screen::server_manager(&theme, &screen::State::sample()), 1000.0, 640.0, &m), theme.color("window"), &m);
+    let want = turboui_raster::render(&layout(&screen::server_manager(&theme, &after), 1000.0, 640.0, &m), theme.color("bg"), &m);
+    let unchanged = turboui_raster::render(&layout(&screen::server_manager(&theme, &screen::State::sample()), 1000.0, 640.0, &m), theme.color("bg"), &m);
     let t = theme.clone();
     let shot = turboui_gpui::screenshot_after_clicks(
         screen::State::sample(),
@@ -66,16 +86,4 @@ fn clicking_a_tile_selects_it() {
     println!("after click: {d_right:.3} from the expected picture, {d_wrong:.3} from the unclicked one");
     assert!(d_right < 4.0, "the click did not produce the expected picture ({d_right:.2})");
     assert!(d_wrong > d_right * 2.0, "the click had no visible effect");
-}
-
-#[test]
-fn server_window_agrees_too() {
-    let theme = Theme::from_toml(THEME).unwrap();
-    let m = Measurer::new();
-    let reference = turboui_raster::render(&layout(&screen::server_window(&theme), 900.0, 560.0, &m), theme.color("window"), &m);
-    let t = theme.clone();
-    let shot = turboui_gpui::screenshot((), move |_| screen::server_window(&t), 900.0, 560.0);
-    let d = mean_diff(shot, &reference);
-    println!("server window: {d:.3} / 255");
-    assert!(d < 4.0, "GPUI differs from the reference by {d:.2}/255 on average");
 }

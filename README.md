@@ -23,14 +23,24 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json cargo test -p turboui-demo
 
 Needs Rust 1.88 or newer (GPUI Kit uses the 2024 edition); `rust-toolchain.toml` pins 1.97.0, which `rustup` installs automatically. Linux build also needs `sudo apt install libxkbcommon-x11-dev libwayland-dev libfontconfig-dev libxcb1-dev libvulkan-dev` and a Vulkan driver (`mesa-vulkan-drivers` for software rendering) to run the GPUI window.
 
+## Themes
+
+A look is a **palette** (colours) plus a **style** (shapes and materials), the same split turbothemes uses.
+- `themes/palettes/*.toml` are generated from the real turbothemes palettes by `tools/import-palettes.mjs`, which runs turboengine's own colour derivation, so the colours match the web themes exactly. Included: macOS Dark, macOS, Nord, Dracula (the importer can do any of the 67: `node tools/import-palettes.mjs <turboengine>/themes themes/palettes <id>...`).
+- `themes/styles/flat.toml`: flat, Breeze-like. `themes/styles/liquid.toml`: **macOS Liquid Glass**, ported from turbothemes' `liquid` style.
+
+Try one: `cargo run -p turboui-demo -- --theme nord/flat --png out.png` (any palette with either style, e.g. `macos-dark/liquid`).
+
+**Liquid Glass here:** translucent surfaces that blur and bend what is behind them (Snell's-law lens at the rim), saturate and tint it, add a diagonal sheen and a rim lit from the top left, on top of soft ambient colour light. The software renderer does it per pixel. GPUI cannot blur what is behind a surface, so the GPUI backend asks the software renderer for the finished glass and paints it as a picture (recomputed only when the screen changes). Not done: colour fringing at the rim, the springy press and open animations, glow under the pointer, the Clear variant, and the window-inactive fade.
+
 ## Status (v0)
 
-Works: boxes, single-line text, filled-polygon shapes (a small built-in icon set and the TurboMC cube), row/column layout with wrapping grids, padding, gap, grow, alignment, colours, rounded corners, borders, clickable areas by id, TOML themes, a software reference renderer, golden tests, and a GPUI window that re-lays out on resize and on clicks.
+Works: boxes, single-line text, filled-polygon shapes (a small built-in icon set and the TurboMC cube), row/column layout with wrapping grids, padding, gap, grow, alignment, colours, rounded corners, borders, clickable areas by id, TOML palettes and styles, Liquid Glass and ambient light, a software reference renderer, golden tests, and a GPUI window that re-lays out on resize and on clicks.
 
-The demo (`turboui-demo`) has two Prism-style screens: the server list (toolbar, icon grid with group heading, right-hand action list, status bar) and a server's own window (page list, console, command box, buttons).
+The demo (`turboui-demo`) has two Prism-style screens: the server list (toolbar, icon grid with group heading, right-hand action list, status bar) and a server's own window (page list, console, command box, buttons). In a glass style the toolbar and action list float as glass over ambient light.
 
-Not yet: hover, keyboard and text input, scrolling and clipping (content that overflows spills over its neighbours), long/virtual lists, bitmap images, text wrapping and ellipsis, animation, accessibility, mobile and web backends. Effects such as blur and glass are not in the model. The icons are simple placeholders.
+Not yet: hover, keyboard and text input, scrolling and clipping (content that overflows spills over its neighbours), long/virtual lists, bitmap images, text wrapping and ellipsis, animation, accessibility, mobile and web backends. The icons are simple placeholders.
 
-Verified: layout and the reference renderer (golden tests). The real GPUI renderer, drawn offscreen with software Vulkan, matches the reference on both screens (mean difference under 1 out of 255) and a simulated click on a server tile changes the picture exactly as the app state says (tests in `gpui_matches_reference`). The live window itself (real mouse, window chrome) is only checked by hand on a desktop.
+Verified: layout and the reference renderer (golden tests for seven themed screens). The real GPUI renderer, drawn offscreen with software Vulkan, matches the reference within about 1 out of 255 on average for flat and Liquid Glass screens, light and dark, and a simulated click on a server tile changes the picture exactly as the app state says (tests in `gpui_matches_reference`). That comparison caught a real bug (images were premultiplied twice, which dimmed the ambient light). The live window itself (real mouse, window chrome, glass cost while animating) is only checked by hand on a desktop.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the rules the project follows.
