@@ -21,7 +21,7 @@ cargo run -p turboui-demo --features gpui             # open it in a real GPUI w
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json cargo test -p turboui-demo --features headless
 ```
 
-Linux build needs `sudo apt install libxkbcommon-x11-dev libwayland-dev libfontconfig-dev libxcb1-dev libvulkan-dev` and a Vulkan driver (`mesa-vulkan-drivers` for software rendering) to run the GPUI window.
+Needs Rust 1.88 or newer (GPUI Kit uses the 2024 edition); `rust-toolchain.toml` pins 1.97.0, which `rustup` installs automatically. Linux build also needs `sudo apt install libxkbcommon-x11-dev libwayland-dev libfontconfig-dev libxcb1-dev libvulkan-dev` and a Vulkan driver (`mesa-vulkan-drivers` for software rendering) to run the GPUI window.
 
 ## Status (v0)
 
