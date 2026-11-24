@@ -104,3 +104,16 @@ fn blend_glyph(pm: &mut Pixmap, cov: &[u8], gw: usize, gh: usize, gx: i32, gy: i
 pub fn png_bytes(pm: &Pixmap) -> Vec<u8> {
     pm.encode_png().expect("png encoding")
 }
+
+/// PNG bytes for raw RGBA pixels (used for pictures taken by other backends).
+pub fn png_from_rgba(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut out, width, height);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        let mut w = enc.write_header().expect("png header");
+        w.write_image_data(rgba).expect("png data");
+    }
+    out
+}

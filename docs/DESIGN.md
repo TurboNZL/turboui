@@ -5,10 +5,8 @@
 3. **Design is data.** Colours, sizes and radii come from a theme file (`themes/*.toml`), by name. A missing token stops the program with a clear message instead of showing the wrong colour.
 4. **Same font everywhere.** The bundled fonts are used by every backend, so text widths agree. (Currently DejaVu; swappable.)
 5. **Golden images.** `goldens/` holds the expected picture of each test screen. A change that alters a picture fails the test until it is reviewed and re-saved with `TURBOUI_BLESS=1 cargo test`.
-6. **Two backends before trusting the model.** The reference renderer is the second backend. The next real one (Android or web) will show where the model is too GPUI-shaped.
-
-## Known build quirk
-`gpui 0.2.2` depends on `xattr 0.2.3`, which does not compile against current `libc`. `vendor-patches/xattr` is that crate with one line changed (`ENODATA` for `ENOATTR`), wired up through `[patch.crates-io]`. Remove it when GPUI moves to a fixed `xattr`.
+6. **Two backends before trusting the model.** The reference renderer is the second backend, and a test (`gpui_matches_reference`) checks that the real GPUI output agrees with it. The next real one (Android or web) will show where the model is too GPUI-shaped.
+7. **Desktop widgets come from GPUI Kit** (`gpui-kit`, Apache-2.0) behind the desktop backend. Apps never import it; they describe screens with TurboUI blocks.
 
 ## Next
-Events and state (click, hover, focus), scroll and virtual lists, images, text input, then a second real backend.
+Events and state (click, hover, focus), scroll and virtual lists, images, text input (mapped onto GPUI Kit's list and input), then a second real backend.

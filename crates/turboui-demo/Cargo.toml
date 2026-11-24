@@ -8,6 +8,10 @@ publish = false
 [features]
 default = []
 gpui = ["dep:turboui-gpui"]
+headless = ["gpui", "turboui-gpui/headless"]
+
+[dev-dependencies]
+tiny-skia = "0.11"
 
 [dependencies]
 turboui-core = { path = "../turboui-core" }

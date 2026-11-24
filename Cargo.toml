@@ -8,8 +8,3 @@ default-members = ["crates/turboui-core", "crates/turboui-raster", "crates/turbo
 edition = "2021"
 license = "MIT"
 version = "0.1.0"
-
-# gpui 0.2.2 pulls in xattr 0.2.3, which does not build against current libc
-# (it uses `libc::ENOATTR`, which Linux does not have). The vendored copy uses ENODATA.
-[patch.crates-io]
-xattr = { path = "vendor-patches/xattr" }

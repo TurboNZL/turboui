@@ -20,6 +20,15 @@ fn main() {
         println!("wrote {out} ({} items)", scene.items.len());
         return;
     }
+    #[cfg(feature = "headless")]
+    if args.first().map(String::as_str) == Some("--gpui-png") {
+        let out = args.get(1).expect("--gpui-png needs an output path");
+        let t = theme.clone();
+        let (w, h, px) = turboui_gpui::screenshot(move || screen::server_manager(&t), 1000.0, 640.0);
+        std::fs::write(out, turboui_raster::png_from_rgba(w, h, &px)).expect("write png");
+        println!("wrote {out} ({w}x{h}) from the real GPUI renderer");
+        return;
+    }
     #[cfg(feature = "gpui")]
     {
         let t = theme.clone();
