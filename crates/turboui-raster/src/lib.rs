@@ -59,6 +59,19 @@ pub fn render(scene: &Scene, background: Color, m: &Measurer) -> Pixmap {
                     }
                 }
             }
+            DrawItem::Poly { points, color } => {
+                let mut pb = PathBuilder::new();
+                for (i, (px, py)) in points.iter().enumerate() {
+                    if i == 0 { pb.move_to(*px, *py) } else { pb.line_to(*px, *py) }
+                }
+                pb.close();
+                if let Some(p) = pb.finish() {
+                    let mut paint = Paint::default();
+                    paint.set_color(sk(*color));
+                    paint.anti_alias = true;
+                    pm.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+                }
+            }
             DrawItem::Text { x, y, text, size, color, font, baseline, .. } => {
                 let f = m.font(*font);
                 let mut pen = *x;

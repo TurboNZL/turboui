@@ -25,10 +25,12 @@ Needs Rust 1.88 or newer (GPUI Kit uses the 2024 edition); `rust-toolchain.toml`
 
 ## Status (v0)
 
-Works: boxes and single-line text, row/column layout, padding, gap, grow, alignment, colours, rounded corners, borders, TOML themes, a software renderer, golden tests, a GPUI window that resizes.
+Works: boxes, single-line text, filled-polygon shapes (a small built-in icon set and the TurboMC cube), row/column layout with wrapping grids, padding, gap, grow, alignment, colours, rounded corners, borders, clickable areas by id, TOML themes, a software reference renderer, golden tests, and a GPUI window that re-lays out on resize and on clicks.
 
-Not yet: clicks, hover, keyboard and text input, scrolling and lists, images, text wrapping, animation, accessibility, mobile and web backends. Effects such as blur and glass are not in the model yet.
+The demo (`turboui-demo`) has two Prism-style screens: the server list (toolbar, icon grid with group heading, right-hand action list, status bar) and a server's own window (page list, console, command box, buttons).
 
-Verified: layout and the reference renderer (tests). The real GPUI renderer, drawn offscreen with software Vulkan, matches the reference on the sample screen (mean difference about 1 out of 255, test `gpui_matches_reference`). The live window itself (input, resizing, window chrome) has not been run on a real desktop here.
+Not yet: hover, keyboard and text input, scrolling and clipping (content that overflows spills over its neighbours), long/virtual lists, bitmap images, text wrapping and ellipsis, animation, accessibility, mobile and web backends. Effects such as blur and glass are not in the model. The icons are simple placeholders.
+
+Verified: layout and the reference renderer (golden tests). The real GPUI renderer, drawn offscreen with software Vulkan, matches the reference on both screens (mean difference under 1 out of 255) and a simulated click on a server tile changes the picture exactly as the app state says (tests in `gpui_matches_reference`). The live window itself (real mouse, window chrome) is only checked by hand on a desktop.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the rules the project follows.

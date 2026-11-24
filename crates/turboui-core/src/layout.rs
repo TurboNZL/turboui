@@ -8,6 +8,18 @@ use taffy::prelude as t;
 pub enum DrawItem {
     Rect { x: f32, y: f32, w: f32, h: f32, bg: Option<Color>, radius: f32, border: Option<(f32, Color)> },
     Text { x: f32, y: f32, w: f32, h: f32, text: String, size: f32, color: Color, font: Font, baseline: f32, line_height: f32 },
+    /// A filled polygon with points in window pixels.
+    Poly { points: Vec<(f32, f32)>, color: Color },
+}
+
+/// A clickable area, reported to the app by id.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Hit {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
 }
 
 /// The result of laying a screen out: a flat list of items. This is all a backend gets to see.
@@ -16,6 +28,8 @@ pub struct Scene {
     pub width: f32,
     pub height: f32,
     pub items: Vec<DrawItem>,
+    /// Clickable areas, topmost last.
+    pub hits: Vec<Hit>,
 }
 
 fn dim(s: Size) -> t::Dimension {
@@ -38,12 +52,17 @@ fn build(tree: &mut t::TaffyTree<()>, n: &Node, m: &Measurer) -> t::NodeId {
             };
             tree.new_leaf(style).unwrap()
         }
+        Kind::Shape(_) => {
+            let style = t::Style { size: t::Size { width: dim(s.width), height: dim(s.height) }, flex_shrink: 0.0, ..Default::default() };
+            tree.new_leaf(style).unwrap()
+        }
         Kind::Box => {
             let kids: Vec<_> = n.children.iter().map(|c| build(tree, c, m)).collect();
             let [pt, pr, pb, pl] = s.padding;
             let style = t::Style {
                 display: t::Display::Flex,
                 flex_direction: if s.dir == Dir::Row { t::FlexDirection::Row } else { t::FlexDirection::Column },
+                flex_wrap: if s.wrap { t::FlexWrap::Wrap } else { t::FlexWrap::NoWrap },
                 gap: t::Size { width: t::length(s.gap), height: t::length(s.gap) },
                 padding: t::Rect { left: t::length(pl), right: t::length(pr), top: t::length(pt), bottom: t::length(pb) },
                 size: t::Size { width: dim(s.width), height: dim(s.height) },
@@ -69,11 +88,19 @@ fn build(tree: &mut t::TaffyTree<()>, n: &Node, m: &Measurer) -> t::NodeId {
     }
 }
 
-fn collect(tree: &t::TaffyTree<()>, id: t::NodeId, n: &Node, ox: f32, oy: f32, m: &Measurer, out: &mut Vec<DrawItem>) {
+fn collect(tree: &t::TaffyTree<()>, id: t::NodeId, n: &Node, ox: f32, oy: f32, m: &Measurer, out: &mut Vec<DrawItem>, hits: &mut Vec<Hit>) {
     let l = tree.layout(id).unwrap();
     let (x, y, w, h) = (ox + l.location.x, oy + l.location.y, l.size.width, l.size.height);
     let s = &n.style;
+    if let Some(hid) = &n.id {
+        hits.push(Hit { id: hid.clone(), x, y, w, h });
+    }
     match &n.kind {
+        Kind::Shape(faces) => {
+            for f in faces {
+                out.push(DrawItem::Poly { points: f.points.iter().map(|(px, py)| (x + px * w, y + py * h)).collect(), color: f.color });
+            }
+        }
         Kind::Text(txt) => {
             let font = if s.mono { Font::Mono } else if s.bold { Font::Bold } else { Font::Regular };
             out.push(DrawItem::Text {
@@ -92,7 +119,7 @@ fn collect(tree: &t::TaffyTree<()>, id: t::NodeId, n: &Node, ox: f32, oy: f32, m
             }
             let kids = tree.children(id).unwrap();
             for (k, kid) in n.children.iter().zip(kids) {
-                collect(tree, kid, k, x, y, m, out);
+                collect(tree, kid, k, x, y, m, out, hits);
             }
         }
     }
@@ -108,8 +135,9 @@ pub fn layout(root: &Node, width: f32, height: f32, m: &Measurer) -> Scene {
     tree.compute_layout(id, t::Size { width: t::AvailableSpace::Definite(width), height: t::AvailableSpace::Definite(height) })
         .unwrap();
     let mut items = vec![];
-    collect(&tree, id, &root, 0.0, 0.0, m, &mut items);
-    Scene { width, height, items }
+    let mut hits = vec![];
+    collect(&tree, id, &root, 0.0, 0.0, m, &mut items, &mut hits);
+    Scene { width, height, items, hits }
 }
 
 #[cfg(test)]

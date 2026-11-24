@@ -29,6 +29,16 @@ impl Color {
     pub fn to_rgba_u32(self) -> u32 {
         (self.r as u32) << 24 | (self.g as u32) << 16 | (self.b as u32) << 8 | self.a as u32
     }
+    /// Mixes towards white by `f` (0.0 to 1.0).
+    pub fn lighten(self, f: f32) -> Color {
+        let m = |v: u8| (v as f32 + (255.0 - v as f32) * f).round() as u8;
+        Color { r: m(self.r), g: m(self.g), b: m(self.b), a: self.a }
+    }
+    /// Mixes towards black by `f` (0.0 to 1.0).
+    pub fn darken(self, f: f32) -> Color {
+        let m = |v: u8| (v as f32 * (1.0 - f)).round() as u8;
+        Color { r: m(self.r), g: m(self.g), b: m(self.b), a: self.a }
+    }
     /// Same colour with its alpha scaled by `f` (0.0 to 1.0).
     pub fn faded(self, f: f32) -> Color {
         Color { a: (self.a as f32 * f.clamp(0.0, 1.0)).round() as u8, ..self }
@@ -83,6 +93,8 @@ pub struct Style {
     pub font_size: f32,
     pub bold: bool,
     pub mono: bool,
+    /// Row boxes only: start a new line when the children do not fit.
+    pub wrap: bool,
 }
 
 impl Default for Style {
@@ -103,6 +115,7 @@ impl Default for Style {
             font_size: 14.0,
             bold: false,
             mono: false,
+            wrap: false,
         }
     }
 }

@@ -3,16 +3,21 @@
 use turboui_core::{layout, Measurer, Theme};
 use turboui_demo::{screen, THEME};
 
-fn render(w: f32, h: f32) -> Vec<u8> {
+fn render(which: &str, w: f32, h: f32) -> Vec<u8> {
     let theme = Theme::from_toml(THEME).unwrap();
     let m = Measurer::new();
-    let scene = layout(&screen::server_manager(&theme), w, h, &m);
-    turboui_raster::png_bytes(&turboui_raster::render(&scene, theme.color("bg"), &m))
+    let node = match which {
+        "main" => screen::server_manager(&theme, &screen::State::sample()),
+        "window" => screen::server_window(&theme),
+        _ => unreachable!(),
+    };
+    let scene = layout(&node, w, h, &m);
+    turboui_raster::png_bytes(&turboui_raster::render(&scene, theme.color("window"), &m))
 }
 
-fn check(name: &str, w: f32, h: f32) {
+fn check(name: &str, which: &str, w: f32, h: f32) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../goldens").join(name);
-    let got = render(w, h);
+    let got = render(which, w, h);
     if std::env::var("TURBOUI_BLESS").is_ok() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, &got).unwrap();
@@ -24,10 +29,15 @@ fn check(name: &str, w: f32, h: f32) {
 
 #[test]
 fn server_manager_wide() {
-    check("server_manager_1000x640.png", 1000.0, 640.0);
+    check("server_manager_1000x640.png", "main", 1000.0, 640.0);
 }
 
 #[test]
-fn server_manager_narrow() {
-    check("server_manager_760x520.png", 760.0, 520.0);
+fn server_manager_narrow_wraps_the_grid() {
+    check("server_manager_560x420.png", "main", 560.0, 420.0);
+}
+
+#[test]
+fn server_window_console() {
+    check("server_window_900x560.png", "window", 900.0, 560.0);
 }

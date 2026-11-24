@@ -34,11 +34,48 @@ fn mean_diff(gpui: (u32, u32, Vec<u8>), reference: &tiny_skia::Pixmap) -> f64 {
 fn gpui_and_reference_agree() {
     let theme = Theme::from_toml(THEME).unwrap();
     let m = Measurer::new();
-    let scene = layout(&screen::server_manager(&theme), 1000.0, 640.0, &m);
-    let reference = turboui_raster::render(&scene, theme.color("bg"), &m);
+    let scene = layout(&screen::server_manager(&theme, &screen::State::sample()), 1000.0, 640.0, &m);
+    let reference = turboui_raster::render(&scene, theme.color("window"), &m);
     let t = theme.clone();
-    let shot = turboui_gpui::screenshot(move || screen::server_manager(&t), 1000.0, 640.0);
+    let shot = turboui_gpui::screenshot(screen::State::sample(), move |st| screen::server_manager(&t, st), 1000.0, 640.0);
     let d = mean_diff(shot, &reference);
     println!("mean difference between GPUI and the reference renderer: {d:.3} / 255");
+    assert!(d < 4.0, "GPUI differs from the reference by {d:.2}/255 on average");
+}
+
+/// Clicking a server tile in the real GPUI window must select it, exactly as the app state says.
+#[test]
+fn clicking_a_tile_selects_it() {
+    let theme = Theme::from_toml(THEME).unwrap();
+    let m = Measurer::new();
+    let mut after = screen::State::sample();
+    after.click("srv:2");
+    assert_eq!(after.selected, Some(2));
+    let want = turboui_raster::render(&layout(&screen::server_manager(&theme, &after), 1000.0, 640.0, &m), theme.color("window"), &m);
+    let unchanged = turboui_raster::render(&layout(&screen::server_manager(&theme, &screen::State::sample()), 1000.0, 640.0, &m), theme.color("window"), &m);
+    let t = theme.clone();
+    let shot = turboui_gpui::screenshot_after_clicks(
+        screen::State::sample(),
+        move |st| screen::server_manager(&t, st),
+        |st, id| st.click(id),
+        &["srv:2"],
+        1000.0,
+        640.0,
+    );
+    let (d_right, d_wrong) = (mean_diff(shot.clone(), &want), mean_diff(shot, &unchanged));
+    println!("after click: {d_right:.3} from the expected picture, {d_wrong:.3} from the unclicked one");
+    assert!(d_right < 4.0, "the click did not produce the expected picture ({d_right:.2})");
+    assert!(d_wrong > d_right * 2.0, "the click had no visible effect");
+}
+
+#[test]
+fn server_window_agrees_too() {
+    let theme = Theme::from_toml(THEME).unwrap();
+    let m = Measurer::new();
+    let reference = turboui_raster::render(&layout(&screen::server_window(&theme), 900.0, 560.0, &m), theme.color("window"), &m);
+    let t = theme.clone();
+    let shot = turboui_gpui::screenshot((), move |_| screen::server_window(&t), 900.0, 560.0);
+    let d = mean_diff(shot, &reference);
+    println!("server window: {d:.3} / 255");
     assert!(d < 4.0, "GPUI differs from the reference by {d:.2}/255 on average");
 }

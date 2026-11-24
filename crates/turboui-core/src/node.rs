@@ -1,9 +1,18 @@
 use crate::style::*;
 
+/// One filled polygon of a [`Kind::Shape`], with points in 0..1 of the shape's box.
+#[derive(Clone, Debug)]
+pub struct Face {
+    pub points: Vec<(f32, f32)>,
+    pub color: Color,
+}
+
 #[derive(Clone, Debug)]
 pub enum Kind {
     Box,
     Text(String),
+    /// Filled polygons (icons, logos). Needs a fixed width and height.
+    Shape(Vec<Face>),
 }
 
 /// One element of a screen. Build with [`col`], [`row`], [`label`] and [`spacer`].
@@ -12,10 +21,12 @@ pub struct Node {
     pub kind: Kind,
     pub style: Style,
     pub children: Vec<Node>,
+    /// Makes the node clickable: backends report this id when it is clicked.
+    pub id: Option<String>,
 }
 
 fn boxed(dir: Dir) -> Node {
-    Node { kind: Kind::Box, style: Style { dir, ..Style::default() }, children: vec![] }
+    Node { kind: Kind::Box, style: Style { dir, ..Style::default() }, children: vec![], id: None }
 }
 /// A box that stacks its children top to bottom.
 pub fn col() -> Node {
@@ -27,7 +38,11 @@ pub fn row() -> Node {
 }
 /// Single-line text.
 pub fn text(s: impl Into<String>) -> Node {
-    Node { kind: Kind::Text(s.into()), style: Style::default(), children: vec![] }
+    Node { kind: Kind::Text(s.into()), style: Style::default(), children: vec![], id: None }
+}
+/// A `w` x `h` picture made of filled polygons.
+pub fn shape(w: f32, h: f32, faces: Vec<Face>) -> Node {
+    Node { kind: Kind::Shape(faces), style: Style { width: Size::Px(w), height: Size::Px(h), ..Style::default() }, children: vec![], id: None }
 }
 /// An empty box that takes up all spare room.
 pub fn spacer() -> Node {
@@ -107,6 +122,15 @@ impl Node {
     }
     pub fn bold(mut self) -> Self {
         self.style.bold = true;
+        self
+    }
+    pub fn wrap(mut self) -> Self {
+        self.style.wrap = true;
+        self
+    }
+    /// Marks the node clickable under this id.
+    pub fn id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
     pub fn mono(mut self) -> Self {

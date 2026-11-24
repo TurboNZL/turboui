@@ -9,4 +9,4 @@
 7. **Desktop widgets come from GPUI Kit** (`gpui-kit`, Apache-2.0) behind the desktop backend. Apps never import it; they describe screens with TurboUI blocks.
 
 ## Next
-Events and state (click, hover, focus), scroll and virtual lists, images, text input (mapped onto GPUI Kit's list and input), then a second real backend.
+Scrolling and clipping, hover and focus, scroll and virtual lists, images, text input (mapped onto GPUI Kit's list and input), then a second real backend.
