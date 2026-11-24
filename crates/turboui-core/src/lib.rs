@@ -15,7 +15,7 @@ mod theme;
 pub use icons::{cube, icon};
 pub use layout::{layout, DrawItem, Hit, Scene};
 pub use node::{col, row, shape, spacer, text as label, Face, Kind, Node};
-pub use ambient::paint_radials;
+pub use ambient::{paint_radials, paint_radials_rect};
 pub use style::{Align, Color, Dir, Glass, Justify, Radial, Size, Style};
 pub use text::{Font, Measurer, FONT_MONO, FONT_REGULAR, FONT_BOLD};
 pub use theme::{Theme, ThemeError};

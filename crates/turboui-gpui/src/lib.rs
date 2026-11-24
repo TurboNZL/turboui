@@ -119,10 +119,33 @@ fn item_to_element(it: &DrawItem, image: Option<&Arc<RenderImage>>) -> AnyElemen
     }
 }
 
+struct Cached {
+    scale: f32,
+    key: Vec<DrawItem>,
+    img: Arc<RenderImage>,
+}
+
+/// What a glass or ambient picture depends on: the item itself and every earlier item that overlaps it.
+fn picture_key(scene: &Scene, i: usize) -> Vec<DrawItem> {
+    let it = &scene.items[i];
+    let mut key = vec![it.clone()];
+    if matches!(it, DrawItem::Glass { .. }) {
+        let (x, y, w, h) = turboui_raster::bbox(it);
+        for earlier in &scene.items[..i] {
+            let (ex, ey, ew, eh) = turboui_raster::bbox(earlier);
+            if ex < x + w && ex + ew > x && ey < y + h && ey + eh > y {
+                key.push(earlier.clone());
+            }
+        }
+    }
+    key
+}
+
 struct SceneView<S> {
     state: S,
-    /// Pictures for the radial and glass items of the last scene, valid while the scene and scale stay the same.
-    cache: Option<(Scene, f32, Vec<Option<Arc<RenderImage>>>)>,
+    /// Pictures for the radial and glass items, reused while what they depend on (their own look and whatever is
+    /// painted under them) and the scale stay the same. Changing a selection elsewhere does not redo any glass.
+    cache: Vec<Option<Cached>>,
     build: Box<dyn Fn(&S) -> Node>,
     update: Box<dyn Fn(&mut S, &str)>,
     measurer: Measurer,
@@ -133,29 +156,31 @@ impl<S: 'static> Render for SceneView<S> {
         let size = window.viewport_size();
         let scene = layout(&(self.build)(&self.state), f32::from(size.width), f32::from(size.height), &self.measurer);
         let scale = window.scale_factor();
-        let fresh = !matches!(&self.cache, Some((s, sc, _)) if *s == scene && *sc == scale);
-        if fresh {
-            // Glass cannot be blurred or bent by GPUI itself: the reference renderer makes the finished surface
-            // and GPUI paints it as a picture. Ambient light is painted the same way.
-            let pics = scene
-                .items
-                .iter()
-                .enumerate()
-                .map(|(i, it)| match it {
-                    DrawItem::Glass { .. } => {
-                        let p = turboui_raster::glass_patch(&scene, i, Color::rgb(0), &self.measurer, scale);
-                        Some(to_image(p.w, p.h, &p.rgba))
-                    }
-                    DrawItem::Radials { w, h, list, .. } => {
-                        let (wd, hd) = ((w * scale).round() as u32, (h * scale).round() as u32);
-                        Some(to_image(wd, hd, &paint_radials(wd, hd, list)))
-                    }
-                    _ => None,
-                })
-                .collect();
-            self.cache = Some((scene.clone(), scale, pics));
+        self.cache.resize_with(scene.items.len(), || None);
+        // Glass cannot be blurred or bent by GPUI itself: the reference renderer makes the finished surface
+        // and GPUI paints it as a picture. Ambient light is painted the same way.
+        for (i, it) in scene.items.iter().enumerate() {
+            if !matches!(it, DrawItem::Glass { .. } | DrawItem::Radials { .. }) {
+                self.cache[i] = None;
+                continue;
+            }
+            let key = picture_key(&scene, i);
+            if matches!(&self.cache[i], Some(c) if c.scale == scale && c.key == key) {
+                continue;
+            }
+            let img = match it {
+                DrawItem::Glass { .. } => {
+                    let p = turboui_raster::glass_patch(&scene, i, Color::rgb(0), &self.measurer, scale);
+                    to_image(p.w, p.h, &p.rgba)
+                }
+                DrawItem::Radials { w, h, list, .. } => {
+                    let (wd, hd) = ((w * scale).round() as u32, (h * scale).round() as u32);
+                    to_image(wd, hd, &paint_radials(wd, hd, list))
+                }
+                _ => unreachable!(),
+            };
+            self.cache[i] = Some(Cached { scale, key, img });
         }
-        let pics = &self.cache.as_ref().expect("cache was just filled").2;
         let hits = scene.hits.iter().map(|h| {
             let id = h.id.clone();
             div()
@@ -172,7 +197,7 @@ impl<S: 'static> Render for SceneView<S> {
                 }))
                 .test_support()
         });
-        div().relative().size_full().children(scene.items.iter().zip(pics.iter()).map(|(it, pic)| item_to_element(it, pic.as_ref()))).children(hits)
+        div().relative().size_full().children(scene.items.iter().zip(self.cache.iter()).map(|(it, pic)| item_to_element(it, pic.as_ref().map(|c| &c.img)))).children(hits)
     }
 }
 
@@ -202,7 +227,7 @@ pub fn run<S: 'static>(
                 ..Default::default()
             },
             cx,
-            move |_, cx| cx.new(|_| SceneView { state, cache: None, build: Box::new(build), update: Box::new(update), measurer: Measurer::new() }),
+            move |_, cx| cx.new(|_| SceneView { state, cache: Vec::new(), build: Box::new(build), update: Box::new(update), measurer: Measurer::new() }),
         )
         .expect("open window");
         cx.on_window_closed(|cx, _| {
@@ -251,7 +276,7 @@ pub fn screenshot_after_clicks<S: 'static>(
                     ..Default::default()
                 },
                 cx,
-                move |_, cx| cx.new(|_| SceneView { state, cache: None, build: Box::new(build), update: Box::new(update), measurer: Measurer::new() }),
+                move |_, cx| cx.new(|_| SceneView { state, cache: Vec::new(), build: Box::new(build), update: Box::new(update), measurer: Measurer::new() }),
             )
         })
         .expect("open offscreen window");

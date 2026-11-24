@@ -31,7 +31,7 @@ A look is a **palette** (colours) plus a **style** (shapes and materials), the s
 
 Try one: `cargo run -p turboui-demo -- --theme nord/flat --png out.png` (any palette with either style, e.g. `macos-dark/liquid`).
 
-**Liquid Glass here:** translucent surfaces that blur and bend what is behind them (Snell's-law lens at the rim), saturate and tint it, add a diagonal sheen and a rim lit from the top left, on top of soft ambient colour light. The software renderer does it per pixel. GPUI cannot blur what is behind a surface, so the GPUI backend asks the software renderer for the finished glass and paints it as a picture (recomputed only when the screen changes). Not done: colour fringing at the rim, the springy press and open animations, glow under the pointer, the Clear variant, and the window-inactive fade.
+**Liquid Glass here:** translucent surfaces that blur and bend what is behind them (Snell's-law lens at the rim), saturate and tint it, add a diagonal sheen and a rim lit from the top left, on top of soft ambient colour light. The software renderer does it per pixel. GPUI cannot blur what is behind a surface, so the GPUI backend asks the software renderer for the finished glass and paints it as a picture (a surface's picture is redone only when something under it changes, so selecting items elsewhere costs nothing). Not done: colour fringing at the rim, the springy press and open animations, glow under the pointer, the Clear variant, and the window-inactive fade.
 
 ## Status (v0)
 

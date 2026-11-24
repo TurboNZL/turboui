@@ -87,3 +87,23 @@ fn clicking_a_tile_selects_it() {
     assert!(d_right < 4.0, "the click did not produce the expected picture ({d_right:.2})");
     assert!(d_wrong > d_right * 2.0, "the click had no visible effect");
 }
+
+/// Selecting another server must not redo the glass (it only depends on what is under it), so a click on glass screens
+/// costs about the same as no click at all.
+#[test]
+fn clicking_does_not_redo_the_glass() {
+    use std::time::Instant;
+    let theme = theme_from_arg("macos-dark/liquid");
+    let run = |clicks: &[&str]| {
+        let t = theme.clone();
+        let start = Instant::now();
+        turboui_gpui::screenshot_after_clicks(screen::State::sample(), move |st| screen::server_manager(&t, st), |st, id| st.click(id), clicks, 1000.0, 640.0);
+        start.elapsed().as_millis()
+    };
+    let _warm = run(&[]);
+    let none = run(&[]);
+    let five = run(&["srv:1", "srv:2", "srv:3", "srv:4", "srv:0"]);
+    println!("no clicks: {none} ms; five clicks: {five} ms");
+    // five extra renders with recomputed glass would add well over a second; with the cache they add little
+    assert!(five < none + 600, "five clicks took {five} ms against {none} ms with none");
+}

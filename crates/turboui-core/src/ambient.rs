@@ -4,10 +4,16 @@ use crate::style::Radial;
 /// ambient background is identical everywhere. Each patch fades linearly to nothing at 62% of its radius,
 /// like the CSS `radial-gradient(color, transparent 62%)` it replaces.
 pub fn paint_radials(w: u32, h: u32, list: &[Radial]) -> Vec<u8> {
-    let mut out = vec![0u8; (w * h * 4) as usize];
-    for y in 0..h {
-        for x in 0..w {
-            let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+    paint_radials_rect(w, h, list, 0, 0, w, h)
+}
+
+/// Like [`paint_radials`] for a `w` x `h` box, but only the pixels of the `rw` x `rh` rectangle at `(rx, ry)` (cheaper when
+/// only a part is needed, e.g. what is behind a glass surface).
+pub fn paint_radials_rect(w: u32, h: u32, list: &[Radial], rx: u32, ry: u32, rw: u32, rh: u32) -> Vec<u8> {
+    let mut out = vec![0u8; (rw * rh * 4) as usize];
+    for y in 0..rh {
+        for x in 0..rw {
+            let (px, py) = ((rx + x) as f32 + 0.5, (ry + y) as f32 + 0.5);
             let (mut r, mut g, mut b, mut a) = (0f32, 0f32, 0f32, 0f32); // premultiplied
             for p in list {
                 let d = ((px - p.x * w as f32).powi(2) + (py - p.y * h as f32).powi(2)).sqrt();
@@ -22,7 +28,7 @@ pub fn paint_radials(w: u32, h: u32, list: &[Radial]) -> Vec<u8> {
                 a = pa + a * (1.0 - pa);
             }
             if a > 0.0 {
-                let i = ((y * w + x) * 4) as usize;
+                let i = ((y * rw + x) * 4) as usize;
                 out[i] = (r / a * 255.0).round().clamp(0.0, 255.0) as u8;
                 out[i + 1] = (g / a * 255.0).round().clamp(0.0, 255.0) as u8;
                 out[i + 2] = (b / a * 255.0).round().clamp(0.0, 255.0) as u8;
