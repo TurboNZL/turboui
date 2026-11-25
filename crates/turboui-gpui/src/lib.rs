@@ -365,6 +365,12 @@ pub enum Action<'a> {
     Click(&'a str),
     /// Press a key (e.g. "a", "enter", "backspace").
     Key(&'a str),
+    /// Type text into whatever has the keyboard focus (as `Event::Key` with `text`, one per character).
+    Type(&'a str),
+    /// Send an `Event::Tick`, as the clock would.
+    Tick,
+    /// Wait this many milliseconds (lets background threads deliver news before the next action).
+    Wait(u64),
 }
 
 /// Like [`screenshot`], but first clicks the elements with the given ids, in order, as a user would.
@@ -425,12 +431,21 @@ pub fn screenshot_after<S: 'static>(
             )
         })
         .expect("open offscreen window");
-    cx.update_window(handle, |_, window, cx| {
+    cx.update_window(handle, |root, window, cx| {
         window.render_frame(cx);
+        let view = root.downcast::<SceneView<S>>().expect("root view");
         for action in actions {
             match action {
                 Action::Click(id) => window.click(SharedString::from(id.to_string()), cx),
                 Action::Key(key) => window.key_down(key, false, cx),
+                Action::Type(text) => {
+                    for ch in text.chars() {
+                        let ev = Event::Key { key: ch.to_string(), text: Some(ch.to_string()), ctrl: false, shift: false, alt: false };
+                        view.update(cx, |v, cx| v.send(ev, cx));
+                    }
+                }
+                Action::Tick => view.update(cx, |v, cx| v.send(Event::Tick, cx)),
+                Action::Wait(ms) => std::thread::sleep(std::time::Duration::from_millis(*ms)),
             }
             window.render_frame(cx);
         }
