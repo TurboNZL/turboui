@@ -174,7 +174,9 @@ fn collect(tree: &t::TaffyTree<()>, id: t::NodeId, n: &Node, ox: f32, oy: f32, c
                 c.out.push(DrawItem::Clip { x, y, w, h });
                 // an empty clip still has to be balanced, so keep a zero-size rectangle on the stack
                 c.clips.push(rect.unwrap_or((x, y, 0.0, 0.0)));
-                child_y = y - s.scroll;
+                // the offset is kept inside the content, so `f32::MAX` means "scrolled to the end"
+                let max_scroll = (l.content_size.height - h).max(0.0);
+                child_y = y - s.scroll.clamp(0.0, max_scroll);
                 if let Some(sid) = &n.scroll_id {
                     c.scrolls.push(ScrollArea { id: sid.clone(), x, y, w, h, content_h: l.content_size.height.max(h) });
                 }

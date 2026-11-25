@@ -5,6 +5,7 @@
 //! it never decides layout, so every platform shows the same thing.
 
 mod ambient;
+pub mod builtin;
 mod event;
 mod icons;
 mod layout;
