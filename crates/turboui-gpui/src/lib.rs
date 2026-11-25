@@ -406,7 +406,7 @@ pub fn screenshot_after<S: 'static>(
     );
     cx.update(gpui_kit::init);
     cx.update(add_fonts);
-    let (handle, _) = cx
+    let (handle, view) = cx
         .update(|cx| {
             gpui_kit::open_window(
                 WindowOptions {
@@ -431,9 +431,8 @@ pub fn screenshot_after<S: 'static>(
             )
         })
         .expect("open offscreen window");
-    cx.update_window(handle, |root, window, cx| {
+    cx.update_window(handle, |_, window, cx| {
         window.render_frame(cx);
-        let view = root.downcast::<SceneView<S>>().expect("root view");
         for action in actions {
             match action {
                 Action::Click(id) => window.click(SharedString::from(id.to_string()), cx),
