@@ -1,6 +1,8 @@
 /// Something the user did, reported by a backend to the app. The app changes its own state and the screen is rebuilt.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
+    /// Sent regularly when the app asked for it (see the backend's `Options::tick_ms`), so it can look for outside news.
+    Tick,
     /// A node with this id was clicked.
     Click(String),
     /// The pointer is now over the node with this id (`None`: over nothing clickable).

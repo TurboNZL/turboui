@@ -149,7 +149,8 @@ struct SceneView<S> {
     /// painted under them) and the scale stay the same. Changing a selection elsewhere does not redo any glass.
     cache: Vec<Option<Cached>>,
     build: Box<dyn Fn(&S) -> Node>,
-    update: Box<dyn Fn(&mut S, &Event)>,
+    /// Applies an event; returns whether the screen needs redrawing.
+    update: Box<dyn Fn(&mut S, &Event) -> bool>,
     measurer: Measurer,
     focus: FocusHandle,
     hovered: Option<String>,
@@ -158,8 +159,9 @@ struct SceneView<S> {
 
 impl<S: 'static> SceneView<S> {
     fn send(&mut self, event: Event, cx: &mut Context<Self>) {
-        (self.update)(&mut self.state, &event);
-        cx.notify();
+        if (self.update)(&mut self.state, &event) {
+            cx.notify();
+        }
     }
 }
 
@@ -282,15 +284,35 @@ fn add_fonts(cx: &mut App) {
         .expect("bundled fonts load");
 }
 
+/// How to open the window.
+pub struct Options {
+    pub title: String,
+    pub size: (f32, f32),
+    /// Send `Event::Tick` this often (milliseconds); 0 for never.
+    pub tick_ms: u64,
+}
+
 /// Opens a window showing the screen returned by `build`, laid out again whenever the window resizes.
+/// `update` applies each `Event` to the state and says whether the screen must be redrawn.
 pub fn run<S: 'static>(
     title: &str,
     size: (f32, f32),
     state: S,
     build: impl Fn(&S) -> Node + 'static,
-    update: impl Fn(&mut S, &Event) + 'static,
+    update: impl Fn(&mut S, &Event) -> bool + 'static,
 ) {
-    let title: SharedString = title.to_string().into();
+    run_with(Options { title: title.to_string(), size, tick_ms: 0 }, state, build, update)
+}
+
+/// Like [`run`], with options.
+pub fn run_with<S: 'static>(
+    options: Options,
+    state: S,
+    build: impl Fn(&S) -> Node + 'static,
+    update: impl Fn(&mut S, &Event) -> bool + 'static,
+) {
+    let title: SharedString = options.title.clone().into();
+    let (size, tick_ms) = (options.size, options.tick_ms);
     gpui_kit::application().run(move |cx: &mut App| {
         gpui_kit::init(cx);
         add_fonts(cx);
@@ -302,7 +324,20 @@ pub fn run<S: 'static>(
                 ..Default::default()
             },
             cx,
-            move |_, cx| cx.new(|cx| SceneView { state, cache: Vec::new(), build: Box::new(build), update: Box::new(update), measurer: Measurer::new(), focus: cx.focus_handle(), hovered: None, scrolls: vec![] }),
+            move |_, cx| {
+                cx.new(|cx| {
+                    if tick_ms > 0 {
+                        cx.spawn(async move |this, cx| loop {
+                            cx.background_executor().timer(std::time::Duration::from_millis(tick_ms)).await;
+                            if this.update(cx, |view: &mut SceneView<S>, cx| view.send(Event::Tick, cx)).is_err() {
+                                break;
+                            }
+                        })
+                        .detach();
+                    }
+                    SceneView { state, cache: Vec::new(), build: Box::new(build), update: Box::new(update), measurer: Measurer::new(), focus: cx.focus_handle(), hovered: None, scrolls: vec![] }
+                })
+            },
         )
         .expect("open window");
         cx.on_window_closed(|cx, _| {
@@ -343,7 +378,7 @@ pub fn screenshot_after_clicks<S: 'static>(
     height: f32,
 ) -> (u32, u32, Vec<u8>) {
     let actions: Vec<Action> = clicks.iter().map(|c| Action::Click(c)).collect();
-    screenshot_after(state, build, update, &actions, width, height)
+    screenshot_after(state, build, move |s, e| { update(s, e); true }, &actions, width, height)
 }
 
 /// Like [`screenshot`], but first performs the actions in order, as a user would.
@@ -351,7 +386,7 @@ pub fn screenshot_after_clicks<S: 'static>(
 pub fn screenshot_after<S: 'static>(
     state: S,
     build: impl Fn(&S) -> Node + 'static,
-    update: impl Fn(&mut S, &Event) + 'static,
+    update: impl Fn(&mut S, &Event) -> bool + 'static,
     actions: &[Action],
     width: f32,
     height: f32,

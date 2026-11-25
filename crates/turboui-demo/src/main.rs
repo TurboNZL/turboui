@@ -34,7 +34,7 @@ fn main() {
     #[cfg(feature = "gpui")]
     {
         let t = theme.clone();
-        turboui_gpui::run("TurboUI demo", (1000.0, 640.0), screen::State::sample(), move |st| screen::server_manager(&t, st), |st, ev| st.event(ev));
+        turboui_gpui::run("TurboUI demo", (1000.0, 640.0), screen::State::sample(), move |st| screen::server_manager(&t, st), |st, ev| { st.event(ev); true });
     }
     #[cfg(not(feature = "gpui"))]
     eprintln!("usage: turboui-demo --png out.png [W H]   (build with --features gpui for a window)");
