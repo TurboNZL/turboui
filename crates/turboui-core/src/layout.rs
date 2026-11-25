@@ -88,6 +88,8 @@ fn build(tree: &mut t::TaffyTree<()>, n: &Node, m: &Measurer, no_shrink: bool) -
                 padding: t::Rect { left: t::length(pl), right: t::length(pr), top: t::length(pt), bottom: t::length(pb) },
                 size: t::Size { width: dim(s.width), height: dim(s.height) },
                 flex_grow: s.grow,
+                // like CSS `flex: 1`: a growing box starts from nothing, so a long list inside it scrolls instead of squashing its neighbours
+                flex_basis: if s.grow > 0.0 { t::length(0.0_f32) } else { t::auto() },
                 flex_shrink: if !no_shrink && s.width == Size::Auto && s.height == Size::Auto { 1.0 } else { 0.0 },
                 position: if s.overlay { t::Position::Absolute } else { t::Position::Relative },
                 inset: if s.overlay { t::Rect { left: t::length(0.0_f32), right: t::length(0.0_f32), top: t::length(0.0_f32), bottom: t::length(0.0_f32) } } else { t::Rect { left: t::auto(), right: t::auto(), top: t::auto(), bottom: t::auto() } },
