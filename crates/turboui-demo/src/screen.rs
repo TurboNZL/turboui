@@ -1,7 +1,7 @@
 //! Sample TurboMC Server screens, written only against `turboui-core`.
 //! The layout follows Prism Launcher's main window: a toolbar on top, an icon grid with group
 //! headings, an action list down the right, and a status bar.
-use turboui_core::{col, cube, icon, label, row, spacer, Align, Color, Node, Theme};
+use turboui_core::{col, cube, icon, label, row, spacer, Align, Color, Event, Node, Theme};
 
 /// The screens' own colour names, mapped onto turbothemes' tokens.
 fn tok(t: &Theme, name: &str) -> Color {
@@ -62,6 +62,13 @@ impl State {
             if n < self.servers.len() {
                 self.selected = Some(n);
             }
+        }
+    }
+
+    /// Applies anything the user did.
+    pub fn event(&mut self, event: &Event) {
+        if let Event::Click(id) = event {
+            self.click(id);
         }
     }
 }
@@ -244,5 +251,45 @@ pub fn server_window(t: &Theme) -> Node {
             .child(row().grow(1.0).gap(f).child(surface(t, pages.pad(12.0), t.num("radius_bar"))).child(content))
     } else {
         col().bg(tok(t, "window")).child(row().grow(1.0).child(pages).child(vline(t)).child(content))
+    }
+}
+
+/// A page of controls, a scrolled list that is cut off at its box, and a dialog on top. Used to check clipping,
+/// overlays and the widgets in every renderer.
+pub fn controls(t: &Theme, scroll: f32, with_dialog: bool) -> Node {
+    use turboui_core::{button, checkbox, dialog, progress, switch, text_input, ButtonKind};
+    let lines = (0..40).map(|i| {
+        label(format!("Server log line {i:02}: Preparing spawn area ... {}%", (i * 7) % 100)).mono().size(12.0).color(tok(t, "text"))
+    });
+    let list = col().id("log").h(150.0).pad(8.0).bg(tok(t, "console_bg")).radius(t.num("radius_card").min(12.0))
+        .border(1.0, tok(t, "border"))
+        .child(col().gap(3.0).children(lines).pad(0.0))
+        .scroll_area("log", scroll);
+    let page = col().bg(tok(t, "view")).radials(t.ambient().to_vec()).pad(16.0).gap(14.0)
+        .child(label("Controls").bold().size(t.num("text_lg")).color(tok(t, "text")))
+        .child(row().gap(10.0).align(Align::Center)
+            .child(button(t, "go", "Start", ButtonKind::Primary, false, true))
+            .child(button(t, "hover", "Hovered", ButtonKind::Normal, true, true))
+            .child(button(t, "kill", "Kill", ButtonKind::Danger, false, true))
+            .child(button(t, "off", "Disabled", ButtonKind::Normal, false, false)))
+        .child(row().gap(12.0).child(text_input(t, "name", "Survival", "Server name", true).w(220.0)).child(text_input(t, "empty", "", "Search mods...", false).w(220.0)))
+        .child(row().gap(18.0).align(Align::Center)
+            .child(checkbox(t, "eula", true, "Accept the EULA"))
+            .child(checkbox(t, "backup", false, "Back up on stop"))
+            .child(switch(t, "auto", true))
+            .child(switch(t, "auto2", false))
+            .child(progress(t, 0.62, 160.0)))
+        .child(list);
+    if with_dialog {
+        let body = label("Do you accept the Minecraft End User License Agreement?").size(t.num("text_md")).color(tok(t, "text"));
+        col().child(page.grow(1.0)).child(dialog(
+            t,
+            "Minecraft EULA",
+            body,
+            vec![button(t, "no", "Cancel", ButtonKind::Normal, false, true), button(t, "yes", "Accept", ButtonKind::Primary, false, true)],
+            380.0,
+        ))
+    } else {
+        page
     }
 }

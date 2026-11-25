@@ -12,8 +12,22 @@ pub enum DrawItem {
     Radials { x: f32, y: f32, w: f32, h: f32, list: Vec<crate::style::Radial> },
     /// A glass surface (see [`crate::Glass`]); replaces the box's plain fill.
     Glass { x: f32, y: f32, w: f32, h: f32, radius: f32, glass: crate::style::Glass },
+    /// Everything until the matching `EndClip` is cut off at this box.
+    Clip { x: f32, y: f32, w: f32, h: f32 },
+    EndClip,
     /// A filled polygon with points in window pixels.
     Poly { points: Vec<(f32, f32)>, color: Color },
+}
+
+/// A scrollable area and how much it holds.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScrollArea {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub content_h: f32,
 }
 
 /// A clickable area, reported to the app by id.
@@ -34,6 +48,8 @@ pub struct Scene {
     pub items: Vec<DrawItem>,
     /// Clickable areas, topmost last.
     pub hits: Vec<Hit>,
+    /// Scrollable areas, topmost last.
+    pub scrolls: Vec<ScrollArea>,
 }
 
 fn dim(s: Size) -> t::Dimension {
@@ -44,7 +60,7 @@ fn dim(s: Size) -> t::Dimension {
     }
 }
 
-fn build(tree: &mut t::TaffyTree<()>, n: &Node, m: &Measurer) -> t::NodeId {
+fn build(tree: &mut t::TaffyTree<()>, n: &Node, m: &Measurer, no_shrink: bool) -> t::NodeId {
     let s = &n.style;
     match &n.kind {
         Kind::Text(txt) => {
@@ -61,7 +77,8 @@ fn build(tree: &mut t::TaffyTree<()>, n: &Node, m: &Measurer) -> t::NodeId {
             tree.new_leaf(style).unwrap()
         }
         Kind::Box => {
-            let kids: Vec<_> = n.children.iter().map(|c| build(tree, c, m)).collect();
+            let scrolls = n.scroll_id.is_some();
+            let kids: Vec<_> = n.children.iter().map(|c| build(tree, c, m, scrolls)).collect();
             let [pt, pr, pb, pl] = s.padding;
             let style = t::Style {
                 display: t::Display::Flex,
@@ -71,7 +88,9 @@ fn build(tree: &mut t::TaffyTree<()>, n: &Node, m: &Measurer) -> t::NodeId {
                 padding: t::Rect { left: t::length(pl), right: t::length(pr), top: t::length(pt), bottom: t::length(pb) },
                 size: t::Size { width: dim(s.width), height: dim(s.height) },
                 flex_grow: s.grow,
-                flex_shrink: if s.width == Size::Auto && s.height == Size::Auto { 1.0 } else { 0.0 },
+                flex_shrink: if !no_shrink && s.width == Size::Auto && s.height == Size::Auto { 1.0 } else { 0.0 },
+                position: if s.overlay { t::Position::Absolute } else { t::Position::Relative },
+                inset: if s.overlay { t::Rect { left: t::length(0.0_f32), right: t::length(0.0_f32), top: t::length(0.0_f32), bottom: t::length(0.0_f32) } } else { t::Rect { left: t::auto(), right: t::auto(), top: t::auto(), bottom: t::auto() } },
                 min_size: t::Size { width: t::length(0.0_f32), height: t::length(0.0_f32) },
                 align_items: Some(match s.align {
                     Align::Start => t::AlignItems::FlexStart,
@@ -92,22 +111,45 @@ fn build(tree: &mut t::TaffyTree<()>, n: &Node, m: &Measurer) -> t::NodeId {
     }
 }
 
-fn collect(tree: &t::TaffyTree<()>, id: t::NodeId, n: &Node, ox: f32, oy: f32, m: &Measurer, out: &mut Vec<DrawItem>, hits: &mut Vec<Hit>) {
+struct Collector<'a> {
+    m: &'a Measurer,
+    out: Vec<DrawItem>,
+    hits: Vec<Hit>,
+    scrolls: Vec<ScrollArea>,
+    clips: Vec<(f32, f32, f32, f32)>,
+}
+
+fn intersect(a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)) -> Option<(f32, f32, f32, f32)> {
+    let (x0, y0) = (a.0.max(b.0), a.1.max(b.1));
+    let (x1, y1) = ((a.0 + a.2).min(b.0 + b.2), (a.1 + a.3).min(b.1 + b.3));
+    if x1 > x0 && y1 > y0 {
+        Some((x0, y0, x1 - x0, y1 - y0))
+    } else {
+        None
+    }
+}
+
+fn collect(tree: &t::TaffyTree<()>, id: t::NodeId, n: &Node, ox: f32, oy: f32, c: &mut Collector) {
+    let m = c.m;
     let l = tree.layout(id).unwrap();
     let (x, y, w, h) = (ox + l.location.x, oy + l.location.y, l.size.width, l.size.height);
     let s = &n.style;
     if let Some(hid) = &n.id {
-        hits.push(Hit { id: hid.clone(), x, y, w, h });
+        // a clickable area only counts where it is visible
+        let visible = c.clips.last().map_or(Some((x, y, w, h)), |clip| intersect((x, y, w, h), *clip));
+        if let Some((hx, hy, hw, hh)) = visible {
+            c.hits.push(Hit { id: hid.clone(), x: hx, y: hy, w: hw, h: hh });
+        }
     }
     match &n.kind {
         Kind::Shape(faces) => {
             for f in faces {
-                out.push(DrawItem::Poly { points: f.points.iter().map(|(px, py)| (x + px * w, y + py * h)).collect(), color: f.color });
+                c.out.push(DrawItem::Poly { points: f.points.iter().map(|(px, py)| (x + px * w, y + py * h)).collect(), color: f.color });
             }
         }
         Kind::Text(txt) => {
             let font = if s.mono { Font::Mono } else if s.bold { Font::Bold } else { Font::Regular };
-            out.push(DrawItem::Text {
+            c.out.push(DrawItem::Text {
                 x, y, w, h,
                 text: txt.clone(),
                 size: s.font_size,
@@ -119,16 +161,31 @@ fn collect(tree: &t::TaffyTree<()>, id: t::NodeId, n: &Node, ox: f32, oy: f32, m
         }
         Kind::Box => {
             if let Some(g) = &s.glass {
-                out.push(DrawItem::Glass { x, y, w, h, radius: s.radius, glass: g.clone() });
+                c.out.push(DrawItem::Glass { x, y, w, h, radius: s.radius, glass: g.clone() });
             } else if s.bg.is_some() || s.border.is_some() {
-                out.push(DrawItem::Rect { x, y, w, h, bg: s.bg, radius: s.radius, border: s.border });
+                c.out.push(DrawItem::Rect { x, y, w, h, bg: s.bg, radius: s.radius, border: s.border });
             }
             if !s.radials.is_empty() {
-                out.push(DrawItem::Radials { x, y, w, h, list: s.radials.clone() });
+                c.out.push(DrawItem::Radials { x, y, w, h, list: s.radials.clone() });
+            }
+            let mut child_y = y;
+            if s.clip {
+                let rect = c.clips.last().map_or(Some((x, y, w, h)), |clip| intersect((x, y, w, h), *clip));
+                c.out.push(DrawItem::Clip { x, y, w, h });
+                // an empty clip still has to be balanced, so keep a zero-size rectangle on the stack
+                c.clips.push(rect.unwrap_or((x, y, 0.0, 0.0)));
+                child_y = y - s.scroll;
+                if let Some(sid) = &n.scroll_id {
+                    c.scrolls.push(ScrollArea { id: sid.clone(), x, y, w, h, content_h: l.content_size.height.max(h) });
+                }
             }
             let kids = tree.children(id).unwrap();
             for (k, kid) in n.children.iter().zip(kids) {
-                collect(tree, kid, k, x, y, m, out, hits);
+                collect(tree, kid, k, x, child_y, c);
+            }
+            if s.clip {
+                c.clips.pop();
+                c.out.push(DrawItem::EndClip);
             }
         }
     }
@@ -140,13 +197,12 @@ pub fn layout(root: &Node, width: f32, height: f32, m: &Measurer) -> Scene {
     let mut root = root.clone();
     root.style.width = Size::Px(width);
     root.style.height = Size::Px(height);
-    let id = build(&mut tree, &root, m);
+    let id = build(&mut tree, &root, m, false);
     tree.compute_layout(id, t::Size { width: t::AvailableSpace::Definite(width), height: t::AvailableSpace::Definite(height) })
         .unwrap();
-    let mut items = vec![];
-    let mut hits = vec![];
-    collect(&tree, id, &root, 0.0, 0.0, m, &mut items, &mut hits);
-    Scene { width, height, items, hits }
+    let mut c = Collector { m, out: vec![], hits: vec![], scrolls: vec![], clips: vec![] };
+    collect(&tree, id, &root, 0.0, 0.0, &mut c);
+    Scene { width, height, items: c.out, hits: c.hits, scrolls: c.scrolls }
 }
 
 #[cfg(test)]

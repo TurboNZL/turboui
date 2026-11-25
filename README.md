@@ -39,7 +39,9 @@ Works: boxes, single-line text, filled-polygon shapes (a small built-in icon set
 
 The demo (`turboui-demo`) has two Prism-style screens: the server list (toolbar, icon grid with group heading, right-hand action list, status bar) and a server's own window (page list, console, command box, buttons). In a glass style the toolbar and action list float as glass over ambient light.
 
-Not yet: hover, keyboard and text input, scrolling and clipping (content that overflows spills over its neighbours), long/virtual lists, bitmap images, text wrapping and ellipsis, animation, accessibility, mobile and web backends. The icons are simple placeholders.
+Also works: scroll areas that clip their content, overlays (dialogs over a dimmed scrim), hover, wheel and keyboard events (the app gets `Event`s and changes its own state), and a first widget set (buttons, text field with caret, checkbox, switch, progress bar, dialog).
+
+Not yet: text selection and IME in text fields, virtual lists for very long content, bitmap images, text wrapping and ellipsis, animation, accessibility, mobile and web backends. The icons are simple placeholders.
 
 Verified: layout and the reference renderer (golden tests for seven themed screens). The real GPUI renderer, drawn offscreen with software Vulkan, matches the reference within about 1 out of 255 on average for flat and Liquid Glass screens, light and dark, and a simulated click on a server tile changes the picture exactly as the app state says (tests in `gpui_matches_reference`). That comparison caught a real bug (images were premultiplied twice, which dimmed the ambient light). The live window itself (real mouse, window chrome, glass cost while animating) is only checked by hand on a desktop.
 

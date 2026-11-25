@@ -9,6 +9,9 @@ fn render(which: &str, look: &str, w: f32, h: f32) -> Vec<u8> {
     let node = match which {
         "main" => screen::server_manager(&theme, &screen::State::sample()),
         "window" => screen::server_window(&theme),
+        "controls" => screen::controls(&theme, 0.0, false),
+        "controls-scrolled" => screen::controls(&theme, 120.0, false),
+        "dialog" => screen::controls(&theme, 0.0, true),
         _ => unreachable!(),
     };
     let scene = layout(&node, w, h, &m);
@@ -60,4 +63,19 @@ fn server_window_flat() {
 #[test]
 fn server_window_liquid() {
     check("window_macos-dark_liquid_900x560.png", "window", "macos-dark/liquid", 900.0, 560.0);
+}
+
+#[test]
+fn controls_flat() {
+    check("controls_nord_flat_760x520.png", "controls", "nord/flat", 760.0, 520.0);
+}
+
+#[test]
+fn controls_scrolled_is_cut_off_at_its_box() {
+    check("controls-scrolled_nord_flat_760x520.png", "controls-scrolled", "nord/flat", 760.0, 520.0);
+}
+
+#[test]
+fn dialog_on_glass() {
+    check("dialog_macos-dark_liquid_760x520.png", "dialog", "macos-dark/liquid", 760.0, 520.0);
 }

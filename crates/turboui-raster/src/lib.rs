@@ -5,8 +5,8 @@
 
 pub mod glass;
 
-use tiny_skia::{Color as SkColor, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
-use turboui_core::{paint_radials, Color, DrawItem, Measurer, Scene};
+use tiny_skia::{Color as SkColor, FillRule, Mask, Paint, PathBuilder, Pixmap, Stroke, Transform};
+use turboui_core::{Color, DrawItem, Measurer, Scene};
 
 fn sk(c: Color) -> SkColor {
     SkColor::from_rgba8(c.r, c.g, c.b, c.a)
@@ -48,6 +48,8 @@ pub fn render_scaled(scene: &Scene, background: Color, m: &Measurer, scale: f32,
 pub fn bbox(it: &DrawItem) -> (f32, f32, f32, f32) {
     match it {
         DrawItem::Rect { x, y, w, h, .. } | DrawItem::Radials { x, y, w, h, .. } | DrawItem::Glass { x, y, w, h, .. } | DrawItem::Text { x, y, w, h, .. } => (*x, *y, *w, *h),
+        DrawItem::Clip { x, y, w, h } => (*x, *y, *w, *h),
+        DrawItem::EndClip => (0.0, 0.0, 0.0, 0.0),
         DrawItem::Poly { points, .. } => {
             let (x0, y0) = points.iter().fold((f32::MAX, f32::MAX), |(a, b), (x, y)| (a.min(*x), b.min(*y)));
             let (x1, y1) = points.iter().fold((f32::MIN, f32::MIN), |(a, b), (x, y)| (a.max(*x), b.max(*y)));
@@ -61,7 +63,35 @@ fn render_impl(scene: &Scene, background: Color, m: &Measurer, s: f32, upto: usi
     let mut pm = Pixmap::new(pw.max(1), ph.max(1)).expect("non-empty scene");
     pm.fill(sk(background));
     let (rw, rh) = (pw as f32 / s, ph as f32 / s);
+    // clip rectangles in device pixels (x0, y0, x1, y1), innermost last, and the mask for the innermost
+    let mut clips: Vec<(i32, i32, i32, i32)> = vec![];
+    let mut mask: Option<Mask> = None;
+    let rebuild = |clips: &Vec<(i32, i32, i32, i32)>| -> Option<Mask> {
+        let (x0, y0, x1, y1) = *clips.last()?;
+        let mut m = Mask::new(pw.max(1), ph.max(1))?;
+        let rect = tiny_skia::Rect::from_ltrb(x0 as f32, y0 as f32, (x1.max(x0)) as f32, (y1.max(y0)) as f32)?;
+        m.fill_path(&PathBuilder::from_rect(rect), FillRule::Winding, false, Transform::identity());
+        Some(m)
+    };
     for item in scene.items.iter().take(upto) {
+        match item {
+            DrawItem::Clip { x, y, w, h } => {
+                let mut r = (((x - rx) * s).round() as i32, ((y - ry) * s).round() as i32, ((x - rx + w) * s).round() as i32, ((y - ry + h) * s).round() as i32);
+                if let Some((px0, py0, px1, py1)) = clips.last() {
+                    r = (r.0.max(*px0), r.1.max(*py0), r.2.min(*px1), r.3.min(*py1));
+                }
+                clips.push(r);
+                mask = rebuild(&clips);
+                continue;
+            }
+            DrawItem::EndClip => {
+                clips.pop();
+                mask = rebuild(&clips);
+                continue;
+            }
+            _ => {}
+        }
+        let clip = clips.last().copied();
         let (bx, by, bw, bh) = bbox(item);
         // shadows reach a little outside a glass box
         let reach = if let DrawItem::Glass { glass, .. } = item { glass.shadow_blur * 2.0 + glass.shadow_dy.abs() } else { 1.0 };
@@ -69,6 +99,7 @@ fn render_impl(scene: &Scene, background: Color, m: &Measurer, s: f32, upto: usi
             continue;
         }
         match item {
+            DrawItem::Clip { .. } | DrawItem::EndClip => {}
             DrawItem::Rect { x, y, w, h, bg, radius, border } => {
                 let (x, y, w, h, radius) = ((x - rx) * s, (y - ry) * s, w * s, h * s, radius * s);
                 if let Some(bg) = bg {
@@ -76,7 +107,7 @@ fn render_impl(scene: &Scene, background: Color, m: &Measurer, s: f32, upto: usi
                         let mut paint = Paint::default();
                         paint.set_color(sk(*bg));
                         paint.anti_alias = true;
-                        pm.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+                        pm.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), mask.as_ref());
                     }
                 }
                 if let Some((bw, bc)) = border {
@@ -88,7 +119,7 @@ fn render_impl(scene: &Scene, background: Color, m: &Measurer, s: f32, upto: usi
                         paint.set_color(sk(*bc));
                         paint.anti_alias = true;
                         let stroke = Stroke { width: bw, ..Default::default() };
-                        pm.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                        pm.stroke_path(&p, &paint, &stroke, Transform::identity(), mask.as_ref());
                     }
                 }
             }
@@ -107,7 +138,7 @@ fn render_impl(scene: &Scene, background: Color, m: &Measurer, s: f32, upto: usi
                     let mut paint = Paint::default();
                     paint.set_color(sk(*color));
                     paint.anti_alias = true;
-                    pm.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+                    pm.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), mask.as_ref());
                 }
             }
             DrawItem::Radials { x, y, w, h, list } => {
@@ -119,14 +150,14 @@ fn render_impl(scene: &Scene, background: Color, m: &Measurer, s: f32, upto: usi
                 if sx1 > sx0 && sy1 > sy0 {
                     let (cw, ch) = ((sx1 - sx0) as u32, (sy1 - sy0) as u32);
                     let rgba = turboui_core::paint_radials_rect(wd as u32, hd as u32, list, sx0 as u32, sy0 as u32, cw, ch);
-                    glass::composite(&mut pm, (ox + sx0) as i32, (oy + sy0) as i32, cw, ch, &rgba);
+                    glass::composite(&mut pm, (ox + sx0) as i32, (oy + sy0) as i32, cw, ch, &rgba, clip);
                 }
             }
             DrawItem::Glass { x, y, w, h, radius, glass } => {
                 let (x, y) = (x - rx, y - ry);
                 let patch = glass::patch(&pm, x, y, *w, *h, *radius, glass, s);
-                glass::shadow(&mut pm, x, y, *w, *h, *radius, glass, s);
-                glass::composite(&mut pm, patch.x, patch.y, patch.w, patch.h, &patch.rgba);
+                glass::shadow(&mut pm, x, y, *w, *h, *radius, glass, s, clip);
+                glass::composite(&mut pm, patch.x, patch.y, patch.w, patch.h, &patch.rgba, clip);
             }
             DrawItem::Text { x, y, text, size, color, font, baseline, .. } => {
                 let f = m.font(*font);
@@ -135,7 +166,7 @@ fn render_impl(scene: &Scene, background: Color, m: &Measurer, s: f32, upto: usi
                     let (met, cov) = f.rasterize(ch, size * s);
                     let gx = (pen + met.xmin as f32).round() as i32;
                     let gy = ((y - ry) * s + baseline * s - met.height as f32 - met.ymin as f32).round() as i32;
-                    blend_glyph(&mut pm, &cov, met.width, met.height, gx, gy, *color);
+                    blend_glyph(&mut pm, &cov, met.width, met.height, gx, gy, *color, clip);
                     pen += met.advance_width;
                 }
             }
@@ -155,13 +186,14 @@ pub fn glass_patch(scene: &Scene, index: usize, background: Color, m: &Measurer,
     glass::patch(&backdrop, x - rx, y - ry, *w, *h, *radius, glass, scale)
 }
 
-fn blend_glyph(pm: &mut Pixmap, cov: &[u8], gw: usize, gh: usize, gx: i32, gy: i32, c: Color) {
+fn blend_glyph(pm: &mut Pixmap, cov: &[u8], gw: usize, gh: usize, gx: i32, gy: i32, c: Color, clip: Option<(i32, i32, i32, i32)>) {
     let (pw, ph) = (pm.width() as i32, pm.height() as i32);
+    let (cx0, cy0, cx1, cy1) = clip.unwrap_or((0, 0, pw, ph));
     let data = pm.data_mut();
     for row in 0..gh as i32 {
         for col in 0..gw as i32 {
             let (px, py) = (gx + col, gy + row);
-            if px < 0 || py < 0 || px >= pw || py >= ph {
+            if px < 0 || py < 0 || px >= pw || py >= ph || px < cx0 || py < cy0 || px >= cx1 || py >= cy1 {
                 continue;
             }
             let a = cov[(row as usize) * gw + col as usize] as u32 * c.a as u32 / 255;

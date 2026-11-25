@@ -177,13 +177,14 @@ pub fn patch(backdrop: &Pixmap, x: f32, y: f32, w: f32, h: f32, radius: f32, g: 
 }
 
 /// Source-over of straight-alpha RGBA `src` (size `w` x `h`) onto `pm` at `(x, y)`.
-pub fn composite(pm: &mut Pixmap, x: i32, y: i32, w: u32, h: u32, src: &[u8]) {
+pub fn composite(pm: &mut Pixmap, x: i32, y: i32, w: u32, h: u32, src: &[u8], clip: Option<(i32, i32, i32, i32)>) {
     let (pw, ph) = (pm.width() as i32, pm.height() as i32);
+    let (cx0, cy0, cx1, cy1) = clip.unwrap_or((0, 0, pw, ph));
     let dst = pm.data_mut();
     for j in 0..h as i32 {
         for i in 0..w as i32 {
             let (px, py) = (x + i, y + j);
-            if px < 0 || py < 0 || px >= pw || py >= ph {
+            if px < 0 || py < 0 || px >= pw || py >= ph || px < cx0 || py < cy0 || px >= cx1 || py >= cy1 {
                 continue;
             }
             let s = ((j as u32 * w + i as u32) * 4) as usize;
@@ -202,7 +203,7 @@ pub fn composite(pm: &mut Pixmap, x: i32, y: i32, w: u32, h: u32, src: &[u8]) {
 }
 
 /// The soft shadow around a glass box (not drawn under the box itself).
-pub fn shadow(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radius: f32, g: &Glass, scale: f32) {
+pub fn shadow(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radius: f32, g: &Glass, scale: f32, clip: Option<(i32, i32, i32, i32)>) {
     if g.shadow.a == 0 || g.shadow_blur <= 0.0 {
         return;
     }
@@ -241,5 +242,5 @@ pub fn shadow(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radius: f32, g: &
             rgba[o + 3] = a.round().clamp(0.0, 255.0) as u8;
         }
     }
-    composite(pm, x0, y0, tw as u32, th as u32, &rgba);
+    composite(pm, x0, y0, tw as u32, th as u32, &rgba, clip);
 }

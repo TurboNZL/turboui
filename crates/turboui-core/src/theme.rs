@@ -128,6 +128,25 @@ impl Theme {
     pub fn color(&self, key: &str) -> Color {
         self.try_spec(key).unwrap_or_else(|_| panic!("theme `{}` has no colour `{key}`", self.name))
     }
+    /// A colour by the role it plays on screen, mapped onto the palette: `window`, `view`, `border`, `text`, `muted`,
+    /// `disabled`, `accent`, `accent_text`, `selection`, `hover`, `ok`, `warn`, `err`, `raised`, `console_bg`, `input_bg`.
+    pub fn role(&self, name: &str) -> Color {
+        match name {
+            "window" => self.color("surface"),
+            "view" => self.color("bg"),
+            "border" => self.color("line"),
+            "text" => self.color("fg"),
+            "disabled" => self.color("muted/0.55"),
+            "accent_text" => self.color("accent-fg"),
+            "selection" => self.color("accent/0.3"),
+            "hover" => self.color("fg/0.08"),
+            "ok" => self.color("good"),
+            "err" => self.color("bad"),
+            "console_bg" => self.color("bg").darken(0.3),
+            "input_bg" => self.color("bg"),
+            other => self.color(other),
+        }
+    }
     /// A number token (radius, text size).
     pub fn num(&self, key: &str) -> f32 {
         *self.numbers.get(key).unwrap_or_else(|| panic!("theme `{}` has no number `{key}`", self.name))

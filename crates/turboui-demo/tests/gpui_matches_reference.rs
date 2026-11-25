@@ -31,6 +31,21 @@ fn mean_diff(gpui: (u32, u32, Vec<u8>), reference: &tiny_skia::Pixmap) -> f64 {
 }
 
 fn agree(look: &str, main: bool, w: f32, h: f32, limit: f64) {
+    agree_with(look, move |t, _| if main { screen::server_manager(t, &screen::State::sample()) } else { screen::server_window(t) }, w, h, limit);
+}
+
+fn agree_with(look: &str, node: impl Fn(&turboui_core::Theme, ()) -> turboui_core::Node + Clone + 'static, w: f32, h: f32, limit: f64) {
+    let theme = theme_from_arg(look);
+    let m = Measurer::new();
+    let reference = turboui_raster::render(&layout(&node(&theme, ()), w, h, &m), theme.color("bg"), &m);
+    let t = theme.clone();
+    let shot = turboui_gpui::screenshot((), move |_| node(&t, ()), w, h);
+    let d = mean_diff(shot, &reference);
+    println!("{look}: mean difference {d:.3} / 255");
+    assert!(d < limit, "{look}: GPUI differs from the reference by {d:.2}/255 on average (limit {limit})");
+}
+
+fn _old_agree(look: &str, main: bool, w: f32, h: f32, limit: f64) {
     let theme = theme_from_arg(look);
     let m = Measurer::new();
     let node = |t: &turboui_core::Theme| if main { screen::server_manager(t, &screen::State::sample()) } else { screen::server_window(t) };
@@ -77,7 +92,7 @@ fn clicking_a_tile_selects_it() {
     let shot = turboui_gpui::screenshot_after_clicks(
         screen::State::sample(),
         move |st| screen::server_manager(&t, st),
-        |st, id| st.click(id),
+        |st, ev| st.event(ev),
         &["srv:2"],
         1000.0,
         640.0,
@@ -97,7 +112,7 @@ fn clicking_does_not_redo_the_glass() {
     let run = |clicks: &[&str]| {
         let t = theme.clone();
         let start = Instant::now();
-        turboui_gpui::screenshot_after_clicks(screen::State::sample(), move |st| screen::server_manager(&t, st), |st, id| st.click(id), clicks, 1000.0, 640.0);
+        turboui_gpui::screenshot_after_clicks(screen::State::sample(), move |st| screen::server_manager(&t, st), |st, ev| st.event(ev), clicks, 1000.0, 640.0);
         start.elapsed().as_millis()
     };
     let _warm = run(&[]);
@@ -106,4 +121,14 @@ fn clicking_does_not_redo_the_glass() {
     println!("no clicks: {none} ms; five clicks: {five} ms");
     // five extra renders with recomputed glass would add well over a second; with the cache they add little
     assert!(five < none + 600, "five clicks took {five} ms against {none} ms with none");
+}
+
+#[test]
+fn controls_and_clipping_agree() {
+    agree_with("nord/flat", |t, _| screen::controls(t, 120.0, false), 760.0, 520.0, 4.0);
+}
+
+#[test]
+fn dialog_over_glass_agrees() {
+    agree_with("macos-dark/liquid", |t, _| screen::controls(t, 0.0, true), 760.0, 520.0, 4.0);
 }

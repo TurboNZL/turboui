@@ -127,6 +127,14 @@ pub struct Style {
     pub wrap: bool,
     pub radials: Vec<Radial>,
     pub glass: Option<Glass>,
+    /// Children are cut off at this box's edge.
+    pub clip: bool,
+    /// Vertical scroll offset in pixels (children move up by this much). Set through `Node::scroll_area`.
+    pub scroll: f32,
+    /// Fills its parent and is drawn above its siblings (dialogs, scrims, menus).
+    pub overlay: bool,
+    /// Margin on the left; `auto` pushes the node to the end of a row.
+    pub margin_left_auto: bool,
 }
 
 impl Default for Style {
@@ -150,6 +158,10 @@ impl Default for Style {
             wrap: false,
             radials: vec![],
             glass: None,
+            clip: false,
+            scroll: 0.0,
+            overlay: false,
+            margin_left_auto: false,
         }
     }
 }

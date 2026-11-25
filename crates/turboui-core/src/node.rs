@@ -23,10 +23,12 @@ pub struct Node {
     pub children: Vec<Node>,
     /// Makes the node clickable: backends report this id when it is clicked.
     pub id: Option<String>,
+    /// Makes the node a scrollable area (wheel events are reported under this id).
+    pub scroll_id: Option<String>,
 }
 
 fn boxed(dir: Dir) -> Node {
-    Node { kind: Kind::Box, style: Style { dir, ..Style::default() }, children: vec![], id: None }
+    Node { kind: Kind::Box, style: Style { dir, ..Style::default() }, children: vec![], id: None, scroll_id: None }
 }
 /// A box that stacks its children top to bottom.
 pub fn col() -> Node {
@@ -38,11 +40,11 @@ pub fn row() -> Node {
 }
 /// Single-line text.
 pub fn text(s: impl Into<String>) -> Node {
-    Node { kind: Kind::Text(s.into()), style: Style::default(), children: vec![], id: None }
+    Node { kind: Kind::Text(s.into()), style: Style::default(), children: vec![], id: None, scroll_id: None }
 }
 /// A `w` x `h` picture made of filled polygons.
 pub fn shape(w: f32, h: f32, faces: Vec<Face>) -> Node {
-    Node { kind: Kind::Shape(faces), style: Style { width: Size::Px(w), height: Size::Px(h), ..Style::default() }, children: vec![], id: None }
+    Node { kind: Kind::Shape(faces), style: Style { width: Size::Px(w), height: Size::Px(h), ..Style::default() }, children: vec![], id: None, scroll_id: None }
 }
 /// An empty box that takes up all spare room.
 pub fn spacer() -> Node {
@@ -130,6 +132,24 @@ impl Node {
     }
     pub fn glass(mut self, g: Glass) -> Self {
         self.style.glass = Some(g);
+        self
+    }
+    /// Cuts children off at this box's edge.
+    pub fn clip(mut self) -> Self {
+        self.style.clip = true;
+        self
+    }
+    /// A scrollable area: clips its children and shifts them up by `offset`. Wheel events over it arrive as
+    /// `Event::Scroll` with this id.
+    pub fn scroll_area(mut self, id: impl Into<String>, offset: f32) -> Self {
+        self.scroll_id = Some(id.into());
+        self.style.clip = true;
+        self.style.scroll = offset;
+        self
+    }
+    /// Fills its parent and sits above its siblings (for dialogs, scrims and menus). Put it inside a box.
+    pub fn overlay(mut self) -> Self {
+        self.style.overlay = true;
         self
     }
     pub fn wrap(mut self) -> Self {

@@ -41,6 +41,7 @@ pub fn icon(name: &str, size: f32, color: Color) -> Node {
         "delete" => vec![f(rect(0.38, 0.06, 0.62, 0.15)), f(rect(0.12, 0.17, 0.88, 0.28)), f(vec![(0.2, 0.33), (0.8, 0.33), (0.74, 0.93), (0.26, 0.93)])],
         "settings" => vec![f(gear())],
         "help" => vec![f(ngon(20, 0.45))],
+        "check" => vec![f(vec![(0.08, 0.52), (0.2, 0.4), (0.4, 0.6), (0.8, 0.12), (0.92, 0.24), (0.4, 0.88)])],
         "dot" => vec![f(ngon(16, 0.5))],
         "tag" => vec![f(vec![(0.08, 0.12), (0.55, 0.12), (0.92, 0.5), (0.55, 0.88), (0.08, 0.88)])],
         other => panic!("no built-in icon called `{other}`"),
